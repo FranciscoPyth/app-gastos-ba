@@ -20,9 +20,10 @@ app.use('/api/categorias', require('./src/routes/categorias'));
 app.use('/api/gastos', require('./src/routes/gastos'));
 app.use('/api/login', require('./src/routes/login'));
 app.use('/api/register', require('./src/routes/registerUser'));
+app.use('/api/audio', require('./src/routes/audio'));
 
 // Manejo de errores
-app.use((err, req, res, next) => {
+app.use((err, res) => {
   console.error(err.stack);
   res.status(500).send('Something broke!');
 });
