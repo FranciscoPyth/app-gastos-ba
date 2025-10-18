@@ -50,6 +50,10 @@ module.exports = (sequelize, DataTypes) => {
         model: 'Usuarios',
         key: 'id'
       }
+    },
+    numero_cel: {
+      type: DataTypes.BIGINT,
+      allowNull: true
     }
   }, { timestamps: false });
   return Gastos;

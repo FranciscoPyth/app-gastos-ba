@@ -59,6 +59,77 @@ router.post("/", async (req, res) => {
   }
 });
 
+// POST: Crear un nuevo gasto con número de teléfono
+router.post("/registrar-gasto-telefono", async (req, res) => {
+  try {
+    console.log("Datos recibidos para gasto con teléfono:", req.body);
+    
+    // Validar que el número de teléfono esté presente
+    if (!req.body.numero_cel) {
+      return res.status(400).json({ error: "El número de teléfono es requerido para este endpoint." });
+    }
+
+    // Función para normalizar el número de teléfono
+    const normalizarTelefono = (numero) => {
+      // Convertir a string y remover cualquier carácter que no sea dígito
+      let numeroLimpio = numero.toString().replace(/\D/g, '');
+      
+      // Si el número empieza con 549, remover el prefijo
+      if (numeroLimpio.startsWith('549')) {
+        numeroLimpio = numeroLimpio.substring(3);
+      }
+      // Si el número empieza con 54, remover el prefijo
+      else if (numeroLimpio.startsWith('54')) {
+        numeroLimpio = numeroLimpio.substring(2);
+      }
+      
+      // Convertir a entero
+      return parseInt(numeroLimpio, 10);
+    };
+
+    // Crear una copia de los datos del request
+    const datosGasto = { ...req.body };
+    
+    // Normalizar el número de teléfono antes de guardarlo
+    datosGasto.numero_cel = normalizarTelefono(req.body.numero_cel);
+
+    // Validar que la normalización fue exitosa
+    if (isNaN(datosGasto.numero_cel)) {
+      return res.status(400).json({ error: "El número de teléfono proporcionado no es válido." });
+    }
+
+    console.log("Número de teléfono normalizado:", datosGasto.numero_cel);
+
+    // Crear el nuevo gasto con el número normalizado
+    let nuevoGasto = await Gastos.create(datosGasto);
+    
+    // Buscar el gasto creado con todas las relaciones para la respuesta
+    let gastoCompleto = await Gastos.findByPk(nuevoGasto.id, {
+      include: [
+        { model: MetodosPagos },
+        { model: Divisas },
+        { model: TiposTransacciones },
+        { model: Categorias },
+        { model: Usuarios }
+      ]
+    });
+
+    res.status(201).json({
+      mensaje: "Gasto registrado exitosamente con número de teléfono",
+      numero_original: req.body.numero_cel,
+      numero_normalizado: datosGasto.numero_cel,
+      gasto: gastoCompleto
+    });
+
+  } catch (error) {
+    console.error("Error al crear el gasto con teléfono:", error);
+    if (error instanceof ValidationError) {
+      return res.status(400).json({ error: error.errors.map(e => e.message) });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // PUT: Actualizar un gasto existente por ID
 router.put("/:id", async (req, res) => {
   try {
@@ -90,6 +161,73 @@ router.delete("/:id", async (req, res) => {
     await gasto.destroy();
     res.status(204).send();
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET: Consultar gastos por número de teléfono
+router.get("/consulta-telefono", async (req, res) => {
+  try {
+    const telefono = req.query.telefono;
+
+    if (!telefono) {
+      return res.status(400).json({ error: "El parámetro 'telefono' es requerido." });
+    }
+
+    // Función para normalizar el número de teléfono a entero
+    const normalizarTelefono = (numero) => {
+      // Convertir a string y remover cualquier carácter que no sea dígito
+      let numeroLimpio = numero.toString().replace(/\D/g, '');
+      
+      // Si el número empieza con 549, remover el prefijo
+      if (numeroLimpio.startsWith('549')) {
+        numeroLimpio = numeroLimpio.substring(3);
+      }
+      // Si el número empieza con 54, remover el prefijo
+      else if (numeroLimpio.startsWith('54')) {
+        numeroLimpio = numeroLimpio.substring(2);
+      }
+      
+      // Convertir a entero
+      return parseInt(numeroLimpio, 10);
+    };
+
+    const telefonoNormalizado = normalizarTelefono(telefono);
+
+    // Crear las variantes del número para buscar
+    const variantes = [
+      telefonoNormalizado,                    // Número base: 3513244486
+      parseInt(`54${telefonoNormalizado}`),   // Con prefijo 54: 543513244486
+      parseInt(`549${telefonoNormalizado}`)   // Con prefijo 549: 5493513244486
+    ].filter(num => !isNaN(num)); // Filtrar valores NaN
+
+    // Buscar gastos que coincidan con cualquiera de las variantes
+    let gastos = await Gastos.findAll({
+      include: [
+        { model: MetodosPagos },
+        { model: Divisas },
+        { model: TiposTransacciones },
+        { model: Categorias },
+        { model: Usuarios }
+      ],
+      where: {
+        numero_cel: {
+          [Op.in]: variantes
+        }
+      },
+      order: [["fecha", "DESC"]]
+    });
+
+    res.json({
+      telefono_consultado: telefono,
+      telefono_normalizado: telefonoNormalizado,
+      variantes_buscadas: variantes,
+      total_gastos: gastos.length,
+      gastos: gastos
+    });
+
+  } catch (error) {
+    console.error("Error al consultar gastos por teléfono:", error);
     res.status(500).json({ error: error.message });
   }
 });
