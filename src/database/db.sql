@@ -47,6 +47,7 @@ CREATE TABLE gastos (
     metodopago_id INT,
     categoria_id INT,
     usuario_id INT,
+    numero_cel BIGINT,
     FOREIGN KEY (divisa_id) REFERENCES divisas(id),
     FOREIGN KEY (tipostransaccion_id) REFERENCES tipostransacciones(id),
     FOREIGN KEY (metodopago_id) REFERENCES metodospagos(id),
