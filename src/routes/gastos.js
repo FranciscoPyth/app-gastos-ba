@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
-const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios } = require("../models");
+const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios, GastosPruebaN8N } = require("../models");
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
 
 // GET: Obtener todos los gastos con filtros opcionales
@@ -59,14 +59,24 @@ router.post("/", async (req, res) => {
   }
 });
 
-// POST: Crear un nuevo gasto con número de teléfono
+// POST: Crear un nuevo gasto con número de teléfono (tabla de pruebas)
 router.post("/registrar-gasto-telefono", async (req, res) => {
   try {
-    console.log("Datos recibidos para gasto con teléfono:", req.body);
+    console.log("Datos recibidos para gasto con teléfono (tabla pruebas):", req.body);
     
     // Validar que el número de teléfono esté presente
     if (!req.body.numero_cel) {
       return res.status(400).json({ error: "El número de teléfono es requerido para este endpoint." });
+    }
+
+    // Validar campos requeridos
+    const camposRequeridos = ['descripcion', 'monto', 'fecha'];
+    const camposFaltantes = camposRequeridos.filter(campo => !req.body[campo]);
+    
+    if (camposFaltantes.length > 0) {
+      return res.status(400).json({ 
+        error: `Campos requeridos faltantes: ${camposFaltantes.join(', ')}` 
+      });
     }
 
     // Función para normalizar el número de teléfono
@@ -83,46 +93,35 @@ router.post("/registrar-gasto-telefono", async (req, res) => {
         numeroLimpio = numeroLimpio.substring(2);
       }
       
-      // Convertir a entero
-      return parseInt(numeroLimpio, 10);
+      return numeroLimpio;
     };
 
-    // Crear una copia de los datos del request
-    const datosGasto = { ...req.body };
-    
-    // Normalizar el número de teléfono antes de guardarlo
-    datosGasto.numero_cel = normalizarTelefono(req.body.numero_cel);
+    // Crear los datos para la nueva tabla (sin relaciones)
+    const datosGasto = {
+      descripcion: req.body.descripcion,
+      monto: parseFloat(req.body.monto),
+      fecha: req.body.fecha,
+      divisa: req.body.divisa || null,
+      tipos_transaccion: req.body.tipos_transaccion || null,
+      metodo_pago: req.body.metodo_pago || null,
+      categoria: req.body.categoria || null,
+      numero_cel: normalizarTelefono(req.body.numero_cel)
+    };
 
-    // Validar que la normalización fue exitosa
-    if (isNaN(datosGasto.numero_cel)) {
-      return res.status(400).json({ error: "El número de teléfono proporcionado no es válido." });
-    }
+    console.log("Datos procesados para guardar:", datosGasto);
 
-    console.log("Número de teléfono normalizado:", datosGasto.numero_cel);
-
-    // Crear el nuevo gasto con el número normalizado
-    let nuevoGasto = await Gastos.create(datosGasto);
-    
-    // Buscar el gasto creado con todas las relaciones para la respuesta
-    let gastoCompleto = await Gastos.findByPk(nuevoGasto.id, {
-      include: [
-        { model: MetodosPagos },
-        { model: Divisas },
-        { model: TiposTransacciones },
-        { model: Categorias },
-        { model: Usuarios }
-      ]
-    });
+    // Crear el nuevo gasto en la tabla de pruebas
+    let nuevoGasto = await GastosPruebaN8N.create(datosGasto);
 
     res.status(201).json({
-      mensaje: "Gasto registrado exitosamente con número de teléfono",
+      mensaje: "Gasto registrado exitosamente en tabla de pruebas",
       numero_original: req.body.numero_cel,
       numero_normalizado: datosGasto.numero_cel,
-      gasto: gastoCompleto
+      gasto: nuevoGasto
     });
 
   } catch (error) {
-    console.error("Error al crear el gasto con teléfono:", error);
+    console.error("Error al crear el gasto en tabla de pruebas:", error);
     if (error instanceof ValidationError) {
       return res.status(400).json({ error: error.errors.map(e => e.message) });
     }
@@ -228,6 +227,75 @@ router.get("/consulta-telefono", async (req, res) => {
 
   } catch (error) {
     console.error("Error al consultar gastos por teléfono:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET: Consultar gastos desde tabla de pruebas por número de teléfono
+router.get("/consulta-telefono-pruebas", async (req, res) => {
+  try {
+    const telefono = req.query.telefono;
+
+    if (!telefono) {
+      return res.status(400).json({ error: "El parámetro 'telefono' es requerido." });
+    }
+
+    // Función para normalizar el número de teléfono
+    const normalizarTelefono = (numero) => {
+      // Convertir a string y remover cualquier carácter que no sea dígito
+      let numeroLimpio = numero.toString().replace(/\D/g, '');
+      
+      // Si el número empieza con 549, remover el prefijo
+      if (numeroLimpio.startsWith('549')) {
+        numeroLimpio = numeroLimpio.substring(3);
+      }
+      // Si el número empieza con 54, remover el prefijo
+      else if (numeroLimpio.startsWith('54')) {
+        numeroLimpio = numeroLimpio.substring(2);
+      }
+      
+      return numeroLimpio;
+    };
+
+    const telefonoNormalizado = normalizarTelefono(telefono);
+
+    // Buscar gastos en la tabla de pruebas
+    let gastos = await GastosPruebaN8N.findAll({
+      where: {
+        numero_cel: telefonoNormalizado
+      },
+      order: [["created_at", "DESC"]]
+    });
+
+    res.json({
+      tabla: "GastosPruebaN8N",
+      telefono_consultado: telefono,
+      telefono_normalizado: telefonoNormalizado,
+      total_gastos: gastos.length,
+      gastos: gastos
+    });
+
+  } catch (error) {
+    console.error("Error al consultar gastos en tabla de pruebas:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET: Obtener todos los gastos de la tabla de pruebas
+router.get("/pruebas", async (req, res) => {
+  try {
+    let gastos = await GastosPruebaN8N.findAll({
+      order: [["created_at", "DESC"]]
+    });
+
+    res.json({
+      tabla: "GastosPruebaN8N",
+      total_gastos: gastos.length,
+      gastos: gastos
+    });
+
+  } catch (error) {
+    console.error("Error al obtener gastos de tabla de pruebas:", error);
     res.status(500).json({ error: error.message });
   }
 });

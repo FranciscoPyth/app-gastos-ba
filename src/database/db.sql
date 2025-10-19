@@ -54,3 +54,17 @@ CREATE TABLE gastos (
     FOREIGN KEY (categoria_id) REFERENCES categorias(id),
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
+
+-- Crear la tabla 'GastosPruebaN8N' para pruebas (sin foreign keys)
+CREATE TABLE GastosPruebaN8N (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    descripcion VARCHAR(255) NOT NULL,
+    monto DECIMAL(10,2) NOT NULL,
+    fecha DATE NOT NULL,
+    divisa VARCHAR(50),
+    tipos_transaccion VARCHAR(100),
+    metodo_pago VARCHAR(100),
+    categoria VARCHAR(100),
+    numero_cel VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

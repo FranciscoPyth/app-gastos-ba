@@ -32,6 +32,7 @@ db.MetodosPagos = require('./metodosPagos')(sequelize, DataTypes);
 db.Categorias = require('./categorias')(sequelize, DataTypes);
 db.Gastos = require('./gastos')(sequelize, DataTypes);
 db.Usuarios = require('./usuarios')(sequelize, DataTypes);
+db.GastosPruebaN8N = require('./gastosPruebaN8N')(sequelize, DataTypes);
 
 // Associations
 db.Gastos.belongsTo(db.Divisas, { foreignKey: 'divisa_id', targetKey: 'id' });
