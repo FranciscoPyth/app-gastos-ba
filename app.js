@@ -18,6 +18,7 @@ app.use('/api/tiposTransacciones', require('./src/routes/tiposTransacciones'));
 app.use('/api/metodosPagos', require('./src/routes/metodosPagos'));
 app.use('/api/categorias', require('./src/routes/categorias'));
 app.use('/api/gastos', require('./src/routes/gastos'));
+app.use('/api/gastosPruebaN8N', require('./src/routes/gastosPruebaN8N'));
 app.use('/api/login', require('./src/routes/login'));
 app.use('/api/register', require('./src/routes/registerUser'));
 app.use('/api/audio', require('./src/routes/audio'));
