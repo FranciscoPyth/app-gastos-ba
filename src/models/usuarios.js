@@ -21,6 +21,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       unique: true,
     },
+    telefono: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: false,
+    },
   }, {
     timestamps: false, // Deshabilita la gestión automática de timestamps
   });

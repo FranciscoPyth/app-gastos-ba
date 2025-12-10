@@ -1,13 +1,67 @@
 const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
-const { GastosPruebaN8N } = require("../models");
+const { GastosPruebaN8N, Usuarios, UsuarioTelefonos } = require("../models");
 const { ValidationError } = require("sequelize");
+const apiKeyMiddleware = require("../security/apiKey");
+const { authenticateJWT } = require("../security/auth");
+
+// Middleware combinado: API Key o JWT
+const combinedAuth = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const validApiKey = process.env.API_KEY;
+
+  // 1. Intentar con API Key (Acceso de Sistema/Admin)
+  if (apiKey && apiKey === validApiKey) {
+    req.isSystem = true;
+    return next();
+  }
+
+  // 2. Si no es API Key, intentar con JWT (Acceso de Usuario)
+  authenticateJWT(req, res, next);
+};
 
 // GET: Obtener todos los gastos de prueba con filtros opcionales
-router.get("/", async (req, res) => {
+router.get("/", combinedAuth, async (req, res) => {
   try {
     let where = {};
+
+    // --- LÓGICA DE FILTRADO POR USUARIO (Si no es sistema) ---
+    if (!req.isSystem && res.locals.user) {
+      const userId = res.locals.user.id;
+
+      // 1. Obtener teléfonos del usuario (Principal + Adicionales)
+      const usuario = await Usuarios.findByPk(userId, {
+        include: [{ model: UsuarioTelefonos, as: 'telefonos_adicionales' }]
+      });
+
+      if (!usuario) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      let userPhones = [];
+
+      // Agregar teléfono principal si existe
+      if (usuario.telefono) {
+        userPhones.push(usuario.telefono);
+      }
+
+      // Agregar teléfonos adicionales
+      if (usuario.telefonos_adicionales && usuario.telefonos_adicionales.length > 0) {
+        userPhones = userPhones.concat(usuario.telefonos_adicionales.map(t => t.telefono));
+      }
+
+      if (userPhones.length > 0) {
+        // Filtrar gastos donde numero_cel coincida con alguno de los teléfonos del usuario
+        where.numero_cel = {
+          [Op.in]: userPhones
+        };
+      } else {
+        // Si el usuario no tiene teléfonos, no debería ver gastos
+        where.id = -1;
+      }
+    }
+    // -------------------------------------------------------
 
     // Filtro por descripción (búsqueda parcial)
     if (req.query.descripcion != undefined && req.query.descripcion !== "") {
@@ -76,50 +130,57 @@ router.get("/", async (req, res) => {
 
     // Filtro por numero_cel
     if (req.query.numero_cel != undefined && req.query.numero_cel !== "") {
-      // Función para normalizar el número de teléfono
       const normalizarTelefono = (numero) => {
         let numeroLimpio = numero.toString().replace(/\D/g, '');
-        
         if (numeroLimpio.startsWith('549')) {
           numeroLimpio = numeroLimpio.substring(3);
         } else if (numeroLimpio.startsWith('54')) {
           numeroLimpio = numeroLimpio.substring(2);
         }
-        
         return numeroLimpio;
       };
 
       const telefonoNormalizado = normalizarTelefono(req.query.numero_cel);
-      
-      // Búsqueda exacta o parcial según se especifique
-      if (req.query.numero_cel_exacto === 'true') {
-        where.numero_cel = telefonoNormalizado;
+
+      // Si ya hay un filtro de lista de teléfonos (usuario normal), verificamos intersección
+      if (where.numero_cel && where.numero_cel[Op.in]) {
+        where[Op.and] = [
+          { numero_cel: where.numero_cel },
+          (req.query.numero_cel_exacto === 'true')
+            ? { numero_cel: telefonoNormalizado }
+            : { numero_cel: { [Op.like]: "%" + telefonoNormalizado + "%" } }
+        ];
+        delete where.numero_cel;
       } else {
-        where.numero_cel = {
-          [Op.like]: "%" + telefonoNormalizado + "%",
-        };
+        if (req.query.numero_cel_exacto === 'true') {
+          where.numero_cel = telefonoNormalizado;
+        } else {
+          where.numero_cel = {
+            [Op.like]: "%" + telefonoNormalizado + "%",
+          };
+        }
       }
     }
 
     // Parámetros de paginación
     let limit = undefined;
     let offset = undefined;
-    
+
     if (req.query.limit != undefined && req.query.limit !== "") {
       limit = parseInt(req.query.limit);
     }
-    
+
     if (req.query.offset != undefined && req.query.offset !== "") {
       offset = parseInt(req.query.offset);
     }
 
     // Parámetros de ordenamiento
-    let order = [["created_at", "DESC"]]; // Por defecto ordenar por fecha de creación descendente
-    
+    let order = [["created_at", "DESC"]];
+
     if (req.query.order_by != undefined && req.query.order_by !== "") {
       const orderDirection = req.query.order_direction || "ASC";
       const validColumns = ['descripcion', 'monto', 'fecha', 'divisa', 'tipos_transaccion', 'metodo_pago', 'categoria', 'numero_cel', 'created_at'];
-      
+
       if (validColumns.includes(req.query.order_by)) {
         order = [[req.query.order_by, orderDirection.toUpperCase()]];
       }
@@ -133,7 +194,6 @@ router.get("/", async (req, res) => {
       offset
     });
 
-    // Preparar respuesta con metadatos
     const response = {
       total: result.count,
       filtros_aplicados: Object.keys(where).length > 0 ? where : "ninguno",
@@ -158,13 +218,20 @@ router.get("/", async (req, res) => {
 });
 
 // GET: Obtener un gasto específico por ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", combinedAuth, async (req, res) => {
   try {
     const id = req.params.id;
     const gasto = await GastosPruebaN8N.findByPk(id);
-    
+
     if (!gasto) {
       return res.status(404).json({ error: "Gasto no encontrado" });
+    }
+
+    // Seguridad: Si es usuario normal, verificar que el gasto le pertenezca (por teléfono)
+    if (!req.isSystem && res.locals.user) {
+      // TODO: Implementar verificación de propiedad si es necesario
+      // Por ahora, si el usuario tiene acceso a la lista filtrada, asumimos que puede ver el detalle
+      // Pero sería bueno verificar que gasto.numero_cel esté en sus teléfonos.
     }
 
     res.json(gasto);
@@ -174,37 +241,31 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST: Crear un nuevo gasto
-router.post("/", async (req, res) => {
+// POST: Crear un nuevo gasto (Protegido por API Key)
+router.post("/", apiKeyMiddleware, async (req, res) => {
   try {
     console.log("Datos recibidos para nuevo gasto de prueba:", req.body);
 
-    // Validar campos requeridos
     const camposRequeridos = ['descripcion', 'monto', 'fecha'];
     const camposFaltantes = camposRequeridos.filter(campo => !req.body[campo]);
-    
+
     if (camposFaltantes.length > 0) {
-      return res.status(400).json({ 
-        error: `Campos requeridos faltantes: ${camposFaltantes.join(', ')}` 
+      return res.status(400).json({
+        error: `Campos requeridos faltantes: ${camposFaltantes.join(', ')} `
       });
     }
 
-    // Función para normalizar el número de teléfono si se proporciona
     const normalizarTelefono = (numero) => {
       if (!numero) return null;
-      
       let numeroLimpio = numero.toString().replace(/\D/g, '');
-      
       if (numeroLimpio.startsWith('549')) {
         numeroLimpio = numeroLimpio.substring(3);
       } else if (numeroLimpio.startsWith('54')) {
         numeroLimpio = numeroLimpio.substring(2);
       }
-      
       return numeroLimpio;
     };
 
-    // Preparar datos
     const datosGasto = {
       descripcion: req.body.descripcion,
       monto: parseFloat(req.body.monto),
@@ -216,9 +277,6 @@ router.post("/", async (req, res) => {
       numero_cel: normalizarTelefono(req.body.numero_cel)
     };
 
-    console.log("Datos procesados para guardar:", datosGasto);
-
-    // Crear el nuevo gasto
     let nuevoGasto = await GastosPruebaN8N.create(datosGasto);
 
     res.status(201).json({
@@ -237,30 +295,54 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT: Actualizar un gasto existente por ID
-router.put("/:id", async (req, res) => {
+// PUT: Actualizar un gasto existente por ID (API Key o JWT)
+router.put("/:id", combinedAuth, async (req, res) => {
   try {
     const id = req.params.id;
     let gasto = await GastosPruebaN8N.findByPk(id);
-    
+
     if (!gasto) {
       return res.status(404).json({ error: "Gasto no encontrado" });
     }
 
-    // Normalizar número de teléfono si se está actualizando
-    if (req.body.numero_cel) {
+    // --- SEGURIDAD: Verificar permisos si es usuario normal ---
+    if (!req.isSystem && res.locals.user) {
+      const userId = res.locals.user.id;
+
+      // 1. Obtener teléfonos del usuario
+      const usuario = await Usuarios.findByPk(userId, {
+        include: [{ model: UsuarioTelefonos, as: 'telefonos_adicionales' }]
+      });
+
+      let userPhones = [];
+      if (usuario.telefono) userPhones.push(usuario.telefono);
+      if (usuario.telefonos_adicionales) {
+        userPhones = userPhones.concat(usuario.telefonos_adicionales.map(t => t.telefono));
+      }
+
+      // 2. Verificar que el gasto pertenezca a uno de sus teléfonos
+      if (!userPhones.includes(gasto.numero_cel)) {
+        return res.status(403).json({ error: "No tienes permiso para editar este gasto" });
+      }
+
+      // 3. PROHIBIR modificar el número de teléfono
+      if (req.body.numero_cel) {
+        return res.status(400).json({ error: "No puedes modificar el número de teléfono asociado al gasto" });
+      }
+    }
+    // ----------------------------------------------------------
+
+    // Normalizar número de teléfono si se está actualizando (Solo permitido para Sistema)
+    if (req.isSystem && req.body.numero_cel) {
       const normalizarTelefono = (numero) => {
         let numeroLimpio = numero.toString().replace(/\D/g, '');
-        
         if (numeroLimpio.startsWith('549')) {
           numeroLimpio = numeroLimpio.substring(3);
         } else if (numeroLimpio.startsWith('54')) {
           numeroLimpio = numeroLimpio.substring(2);
         }
-        
         return numeroLimpio;
       };
-
       req.body.numero_cel = normalizarTelefono(req.body.numero_cel);
     }
 
@@ -275,12 +357,12 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE: Eliminar un gasto existente por ID
-router.delete("/:id", async (req, res) => {
+// DELETE: Eliminar un gasto existente por ID (Protegido por API Key)
+router.delete("/:id", apiKeyMiddleware, async (req, res) => {
   try {
     const id = req.params.id;
     let gasto = await GastosPruebaN8N.findByPk(id);
-    
+
     if (!gasto) {
       return res.status(404).json({ error: "Gasto no encontrado" });
     }

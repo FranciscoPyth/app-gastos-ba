@@ -3,13 +3,28 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Usuarios } = require('../models');
-const { accessTokenSecret } = require('../security/auth'); // Asegúrate de tener una configuración para el secret del token
+const { Op } = require('sequelize');
+const { accessTokenSecret } = require('../security/auth');
 
 router.post('/', async (req, res) => {
-  const { username, password } = req.body;
+  // Aceptamos 'identifier' que puede ser username, email o teléfono
+  const { identifier, password } = req.body;
+
+  if (!identifier || !password) {
+    return res.status(400).json({ message: 'Identificador y contraseña son requeridos' });
+  }
 
   try {
-    const user = await Usuarios.findOne({ where: { username } });
+    // Buscar usuario por username, email o teléfono
+    const user = await Usuarios.findOne({
+      where: {
+        [Op.or]: [
+          { username: identifier },
+          { email: identifier },
+          { telefono: identifier }
+        ]
+      }
+    });
 
     if (!user) {
       return res.status(404).json({ message: 'Usuario no encontrado' });
@@ -23,15 +38,32 @@ router.post('/', async (req, res) => {
     }
 
     // Crear un token JWT
-    const token = jwt.sign({ id: user.id, username: user.username }, accessTokenSecret, {
-      expiresIn: '20m', // Ajusta el tiempo de expiración según tus necesidades
+    const token = jwt.sign(
+      {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        telefono: user.telefono
+      },
+      accessTokenSecret,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      message: 'Login exitoso',
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        telefono: user.telefono
+      }
     });
 
-    res.json({ token });
   } catch (error) {
-    res.status(500).json({ message: 'Error al iniciar sesión', error });
+    console.error('Error en login:', error);
+    res.status(500).json({ message: 'Error al iniciar sesión', error: error.message });
   }
 });
-
 
 module.exports = router;

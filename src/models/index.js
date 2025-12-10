@@ -33,6 +33,8 @@ db.Categorias = require('./categorias')(sequelize, DataTypes);
 db.Gastos = require('./gastos')(sequelize, DataTypes);
 db.Usuarios = require('./usuarios')(sequelize, DataTypes);
 db.GastosPruebaN8N = require('./gastosPruebaN8N')(sequelize, DataTypes);
+db.UsuarioTelefonos = require('./usuarioTelefonos')(sequelize, DataTypes);
+db.PhoneVerifications = require('./phoneVerifications')(sequelize, DataTypes);
 
 // Associations
 db.Gastos.belongsTo(db.Divisas, { foreignKey: 'divisa_id', targetKey: 'id' });
@@ -44,5 +46,9 @@ db.Categorias.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id'
 db.Divisas.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
 db.TiposTransacciones.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
 db.MetodosPagos.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
+
+// Relación Usuarios <-> UsuarioTelefonos
+db.Usuarios.hasMany(db.UsuarioTelefonos, { foreignKey: 'usuario_id', as: 'telefonos_adicionales' });
+db.UsuarioTelefonos.belongsTo(db.Usuarios, { foreignKey: 'usuario_id' });
 
 module.exports = db;
