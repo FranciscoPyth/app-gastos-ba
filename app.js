@@ -8,7 +8,7 @@ app.use(express.json());
 app.use(cors());
 
 // Sincronizar la base de datos
-db.sequelize.sync()
+db.sequelize.sync({ alter: true })
   .then(() => console.log('Database synced'))
   .catch(err => console.error('Error syncing database:', err));
 
@@ -20,11 +20,13 @@ app.use('/api/categorias', require('./src/routes/categorias'));
 app.use('/api/gastos', require('./src/routes/gastos'));
 app.use('/api/gastosPruebaN8N', require('./src/routes/gastosPruebaN8N'));
 app.use('/api/login', require('./src/routes/login'));
+app.use('/api/google-login', require('./src/routes/googleAuth'));
 app.use('/api/register', require('./src/routes/registerUser'));
 app.use('/api/audio', require('./src/routes/audio'));
+app.use('/api/user/phones', require('./src/routes/userPhones'));
 
 // Manejo de errores
-app.use((err, res) => {
+app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send('Something broke!');
 });
