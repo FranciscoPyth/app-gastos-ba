@@ -51,4 +51,13 @@ db.MetodosPagos.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'i
 db.Usuarios.hasMany(db.UsuarioTelefonos, { foreignKey: 'usuario_id', as: 'telefonos_adicionales' });
 db.UsuarioTelefonos.belongsTo(db.Usuarios, { foreignKey: 'usuario_id' });
 
+db.Objetivos = require('./objetivos')(sequelize, DataTypes);
+db.Objetivos.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.Prestamos = require('./prestamos')(sequelize, DataTypes);
+db.Prestamos.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.Deudas = require('./deudas')(sequelize, DataTypes);
+db.Deudas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;
