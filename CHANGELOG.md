@@ -13,6 +13,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.1.0] - 2026-01-08
+
+### Agregado
+- **Deudas**: Soporte para actualización de créditos (PUT `/api/deudas/:id`).
+- **Base de Datos**: Nueva columna `cantidad_cuotas` en tabla `deudas`.
+- **Prestamos**: Actualizaciones en rutas y lógica de negocio.
+
+### Cambiado
+- **Core**: Mejoras en `app.js` y configuración de base de datos (`db.sql`).
+- **Modelos**: Refactorización de modelos Sequelize (`index.js`, `deudas.js`).
+
 ## [1.0.0] - 2025-12-10
 
 ### Características
