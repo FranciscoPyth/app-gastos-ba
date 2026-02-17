@@ -10,7 +10,6 @@ module.exports = (sequelize, DataTypes) => {
     username: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     password: {
       type: DataTypes.STRING,
@@ -19,7 +18,6 @@ module.exports = (sequelize, DataTypes) => {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
     },
     telefono: {
       type: DataTypes.STRING,
@@ -28,6 +26,18 @@ module.exports = (sequelize, DataTypes) => {
     },
   }, {
     timestamps: false, // Deshabilita la gestión automática de timestamps
+    indexes: [
+      {
+        unique: true,
+        fields: ['username'],
+        name: 'unique_username_constraint'
+      },
+      {
+        unique: true,
+        fields: ['email'],
+        name: 'unique_email_constraint'
+      }
+    ]
   });
   return Usuarios;
 };

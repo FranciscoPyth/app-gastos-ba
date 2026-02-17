@@ -13,6 +13,18 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.2.0] - 2026-02-17
+
+### Agregado
+- **WhatsApp**: Integración nativa con Meta Cloud API para envío de códigos de verificación.
+- **Onboarding**: Soporte para vinculación de teléfono como paso posterior al registro (Progressive Onboarding).
+- **Seguridad**: Validación de tokens expirados en 10 minutos para coincidir con plantilla de WhatsApp.
+
+### Cambiado
+- **WhatsApp**: Reemplazo de webhook n8n por llamada directa a Meta API.
+- **WhatsApp**: Uso de plantilla oficial de autenticación `template_ccontrolalo_login_v1`.
+- **Usuarios**: Lógica para asignar teléfono principal si el usuario no tiene uno (ej. Google Login).
+
 ## [1.1.0] - 2026-01-08
 
 ### Agregado

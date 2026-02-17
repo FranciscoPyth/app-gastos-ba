@@ -98,20 +98,60 @@ router.post('/request-verification', async (req, res) => {
             expires_at: expiresAt
         });
 
-        // Enviar código al Webhook de n8n para envío por WhatsApp
-        try {
-            await axios.post('https://vps-4600756-x.dattaweb.com/n8n/webhook/fafb793d-a7d1-4b11-885f-53a4bdb8194e', {
-                recipient_phone: telefonoNormalizado,
-                code: codigo
-            });
-            console.log(`Código de verificación enviado a n8n para ${telefonoNormalizado}`);
-        } catch (webhookError) {
-            console.error('Error al enviar código a n8n:', webhookError.message);
-            // No bloqueamos el flujo, pero logueamos el error
+        // Enviar por WhatsApp (Meta Cloud API)
+        const whatsappToken = process.env.WHATSAPP_TOKEN;
+        const whatsappPhoneId = process.env.WHATSAPP_PHONE_ID;
+
+        if (!whatsappToken || !whatsappPhoneId) {
+            console.warn('[WARNING] WhatsApp credentials not configured.');
+        } else {
+            const whatsappUrl = `https://graph.facebook.com/v21.0/${whatsappPhoneId}/messages`;
+
+            // Template específico
+            const specificTemplateName = 'template_ccontrolalo_login_v1';
+            const specificTemplateLang = 'es_AR';
+
+            const messagePayload = {
+                messaging_product: 'whatsapp',
+                to: telefonoNormalizado,
+                type: 'template',
+                template: {
+                    name: specificTemplateName,
+                    language: { code: specificTemplateLang },
+                    components: [
+                        {
+                            type: 'body',
+                            parameters: [{ type: 'text', text: codigo }]
+                        },
+                        {
+                            type: 'button',
+                            sub_type: 'url',
+                            index: 0,
+                            parameters: [{ type: 'text', text: codigo }]
+                        }
+                    ]
+                }
+            };
+
+            try {
+                await axios.post(whatsappUrl, messagePayload, {
+                    headers: {
+                        'Authorization': `Bearer ${whatsappToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                console.log(`Código de verificación enviado a ${telefonoNormalizado} via Meta Cloud API`);
+            } catch (waError) {
+                console.error('[ERROR] Error al enviar mensaje a WhatsApp:', waError.message);
+                if (waError.response) {
+                    console.error('[ERROR] Meta Response:', JSON.stringify(waError.response.data));
+                }
+            }
         }
 
         res.json({
-            message: 'Código de verificación generado y enviado por WhatsApp. Por favor revisa tu mensajes.'
+            message: 'Código de verificación enviado por WhatsApp.',
+            requires_interaction: false
         });
 
     } catch (error) {
@@ -146,16 +186,46 @@ router.post('/verify', async (req, res) => {
             return res.status(400).json({ message: 'Código inválido o expirado' });
         }
 
-        // Código válido: Agregar a UsuarioTelefonos
-        await UsuarioTelefonos.create({
-            usuario_id: userId,
-            telefono: telefonoNormalizado
-        });
+        // Obtener al usuario para ver si tiene ya un teléfono principal
+        const user = await Usuarios.findByPk(userId);
 
-        // Borrar la verificación usada
-        await verification.destroy();
+        if (!user.telefono) {
+            // CASO A: Usuario no tiene teléfono principal (ej: Google Login) -> Asignar como principal
+            user.telefono = telefonoNormalizado;
+            await user.save();
 
-        res.json({ message: 'Teléfono verificado y agregado exitosamente' });
+            // Borrar la verificación usada
+            await verification.destroy();
+
+            return res.json({
+                message: 'Teléfono principal vinculado exitosamente',
+                isPrimary: true,
+                telefono: telefonoNormalizado
+            });
+        } else {
+            // CASO B: Usuario ya tiene teléfono principal -> Agregar como adicional
+
+            // Verificar si ya existe en adicionales (aunque request-verification ya lo chequea, doble seguridad)
+            const exists = await UsuarioTelefonos.findOne({
+                where: { usuario_id: userId, telefono: telefonoNormalizado }
+            });
+
+            if (!exists) {
+                await UsuarioTelefonos.create({
+                    usuario_id: userId,
+                    telefono: telefonoNormalizado
+                });
+            }
+
+            // Borrar la verificación usada
+            await verification.destroy();
+
+            return res.json({
+                message: 'Teléfono adicional agregado exitosamente',
+                isPrimary: false,
+                telefono: telefonoNormalizado
+            });
+        }
 
     } catch (error) {
         console.error('Error al verificar código:', error);
