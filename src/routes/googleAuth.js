@@ -28,8 +28,8 @@ router.post('/', async (req, res) => {
         // Datos que nos da Google
         const { email, name, sub: googleId } = payload;
 
-        // 2. Buscar usuario en la BD
-        let user = await Usuarios.findOne({ where: { email } });
+        // 2. Buscar usuario en la BD (Case insensitive)
+        let user = await Usuarios.findOne({ where: { email: email.toLowerCase() } });
 
         if (!user) {
             // 3. REGISTRO: Si no existe, lo creamos

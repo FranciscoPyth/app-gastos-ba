@@ -5,6 +5,7 @@ const { GastosPruebaN8N, Usuarios, UsuarioTelefonos } = require("../models");
 const { ValidationError } = require("sequelize");
 const apiKeyMiddleware = require("../security/apiKey");
 const { authenticateJWT } = require("../security/auth");
+const { normalizarTelefono } = require('../utils/phoneUtils');
 
 // Middleware combinado: API Key o JWT
 const combinedAuth = (req, res, next) => {
@@ -53,8 +54,19 @@ router.get("/", combinedAuth, async (req, res) => {
 
       if (userPhones.length > 0) {
         // Filtrar gastos donde numero_cel coincida con alguno de los teléfonos del usuario
+        // MODIFICACIÓN: Buscar tanto formato nuevo (549...) como viejo (local)
+        const telefonosBusqueda = [];
+        userPhones.forEach(phone => {
+          telefonosBusqueda.push(phone); // Formato normalizado (debería ser 549...)
+
+          // Agregar variante sin 549 por si hay datos viejos
+          if (phone.startsWith('549')) {
+            telefonosBusqueda.push(phone.substring(3));
+          }
+        });
+
         where.numero_cel = {
-          [Op.in]: userPhones
+          [Op.in]: telefonosBusqueda
         };
       } else {
         // Si el usuario no tiene teléfonos, no debería ver gastos
@@ -130,34 +142,35 @@ router.get("/", combinedAuth, async (req, res) => {
 
     // Filtro por numero_cel
     if (req.query.numero_cel != undefined && req.query.numero_cel !== "") {
-      const normalizarTelefono = (numero) => {
-        let numeroLimpio = numero.toString().replace(/\D/g, '');
-        if (numeroLimpio.startsWith('549')) {
-          numeroLimpio = numeroLimpio.substring(3);
-        } else if (numeroLimpio.startsWith('54')) {
-          numeroLimpio = numeroLimpio.substring(2);
-        }
-        return numeroLimpio;
-      };
-
       const telefonoNormalizado = normalizarTelefono(req.query.numero_cel);
 
       // Si ya hay un filtro de lista de teléfonos (usuario normal), verificamos intersección
       if (where.numero_cel && where.numero_cel[Op.in]) {
+        // ... (lógica compleja existente, simplificar si es posible o adaptar)
+        // Por ahora, para simplificar y asegurar compatibilidad:
+        // Si el usuario busca un número específico, debe coincidir con alguno de sus permitidos.
+
+        // Generamos variantes de búsqueda para soportar datos viejos (sin 549)
+        const variantesBusqueda = [
+          telefonoNormalizado,
+          telefonoNormalizado.replace(/^549/, '') // Intento de quitar 549 para buscar en formato viejo
+        ].filter(Boolean);
+
         where[Op.and] = [
-          { numero_cel: where.numero_cel },
+          { numero_cel: where.numero_cel }, // Debe estar en su lista permitida
           (req.query.numero_cel_exacto === 'true')
-            ? { numero_cel: telefonoNormalizado }
-            : { numero_cel: { [Op.like]: "%" + telefonoNormalizado + "%" } }
+            ? { numero_cel: { [Op.in]: variantesBusqueda } }
+            : { numero_cel: { [Op.like]: "%" + telefonoNormalizado.replace(/^549/, '') + "%" } } // Buscamos por la parte local para ser más laxos
         ];
-        delete where.numero_cel;
+        delete where.numero_cel; // Eliminamos el filtro original de lista, ya que lo movimos al AND
       } else {
+        // Busqueda admin o sistema sin restricción de usuario
+        // Buscamos por ambas variantes para encontrar todo
+        const numeroLocal = telefonoNormalizado.replace(/^549/, '');
         if (req.query.numero_cel_exacto === 'true') {
-          where.numero_cel = telefonoNormalizado;
+          where.numero_cel = { [Op.or]: [telefonoNormalizado, numeroLocal] };
         } else {
-          where.numero_cel = {
-            [Op.like]: "%" + telefonoNormalizado + "%",
-          };
+          where.numero_cel = { [Op.like]: "%" + numeroLocal + "%" };
         }
       }
     }
@@ -255,15 +268,8 @@ router.post("/", apiKeyMiddleware, async (req, res) => {
       });
     }
 
-    const normalizarTelefono = (numero) => {
-      if (!numero) return null;
-      let numeroLimpio = numero.toString().replace(/\D/g, '');
-      if (numeroLimpio.startsWith('549')) {
-        numeroLimpio = numeroLimpio.substring(3);
-      } else if (numeroLimpio.startsWith('54')) {
-        numeroLimpio = numeroLimpio.substring(2);
-      }
-      return numeroLimpio;
+    const normalizarTelefonoLocal = (numero) => {
+      return normalizarTelefono(numero);
     };
 
     const datosGasto = {
@@ -334,15 +340,6 @@ router.put("/:id", combinedAuth, async (req, res) => {
 
     // Normalizar número de teléfono si se está actualizando (Solo permitido para Sistema)
     if (req.isSystem && req.body.numero_cel) {
-      const normalizarTelefono = (numero) => {
-        let numeroLimpio = numero.toString().replace(/\D/g, '');
-        if (numeroLimpio.startsWith('549')) {
-          numeroLimpio = numeroLimpio.substring(3);
-        } else if (numeroLimpio.startsWith('54')) {
-          numeroLimpio = numeroLimpio.substring(2);
-        }
-        return numeroLimpio;
-      };
       req.body.numero_cel = normalizarTelefono(req.body.numero_cel);
     }
 

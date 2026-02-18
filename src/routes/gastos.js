@@ -3,8 +3,10 @@ const router = express.Router();
 const { Op } = require("sequelize");
 const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios, GastosPruebaN8N } = require("../models");
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
+const { normalizarTelefono } = require('../utils/phoneUtils');
 
 // GET: Obtener todos los gastos con filtros opcionales
+
 router.get("/", async (req, res) => {
   try {
     let where = {};
@@ -63,7 +65,7 @@ router.post("/", async (req, res) => {
 router.post("/registrar-gasto-telefono", async (req, res) => {
   try {
     console.log("Datos recibidos para gasto con teléfono (tabla pruebas):", req.body);
-    
+
     // Validar que el número de teléfono esté presente
     if (!req.body.numero_cel) {
       return res.status(400).json({ error: "El número de teléfono es requerido para este endpoint." });
@@ -72,29 +74,12 @@ router.post("/registrar-gasto-telefono", async (req, res) => {
     // Validar campos requeridos
     const camposRequeridos = ['descripcion', 'monto', 'fecha'];
     const camposFaltantes = camposRequeridos.filter(campo => !req.body[campo]);
-    
+
     if (camposFaltantes.length > 0) {
-      return res.status(400).json({ 
-        error: `Campos requeridos faltantes: ${camposFaltantes.join(', ')}` 
+      return res.status(400).json({
+        error: `Campos requeridos faltantes: ${camposFaltantes.join(', ')}`
       });
     }
-
-    // Función para normalizar el número de teléfono
-    const normalizarTelefono = (numero) => {
-      // Convertir a string y remover cualquier carácter que no sea dígito
-      let numeroLimpio = numero.toString().replace(/\D/g, '');
-      
-      // Si el número empieza con 549, remover el prefijo
-      if (numeroLimpio.startsWith('549')) {
-        numeroLimpio = numeroLimpio.substring(3);
-      }
-      // Si el número empieza con 54, remover el prefijo
-      else if (numeroLimpio.startsWith('54')) {
-        numeroLimpio = numeroLimpio.substring(2);
-      }
-      
-      return numeroLimpio;
-    };
 
     // Crear los datos para la nueva tabla (sin relaciones)
     const datosGasto = {
@@ -173,32 +158,16 @@ router.get("/consulta-telefono", async (req, res) => {
       return res.status(400).json({ error: "El parámetro 'telefono' es requerido." });
     }
 
-    // Función para normalizar el número de teléfono a entero
-    const normalizarTelefono = (numero) => {
-      // Convertir a string y remover cualquier carácter que no sea dígito
-      let numeroLimpio = numero.toString().replace(/\D/g, '');
-      
-      // Si el número empieza con 549, remover el prefijo
-      if (numeroLimpio.startsWith('549')) {
-        numeroLimpio = numeroLimpio.substring(3);
-      }
-      // Si el número empieza con 54, remover el prefijo
-      else if (numeroLimpio.startsWith('54')) {
-        numeroLimpio = numeroLimpio.substring(2);
-      }
-      
-      // Convertir a entero
-      return parseInt(numeroLimpio, 10);
-    };
-
     const telefonoNormalizado = normalizarTelefono(telefono);
+    // Para esta búsqueda legacy, asumimos que se busca en la tabla Gastos que tiene BIGINT
+    const telefonoInt = parseInt(telefonoNormalizado, 10);
 
     // Crear las variantes del número para buscar
     const variantes = [
-      telefonoNormalizado,                    // Número base: 3513244486
-      parseInt(`54${telefonoNormalizado}`),   // Con prefijo 54: 543513244486
-      parseInt(`549${telefonoNormalizado}`)   // Con prefijo 549: 5493513244486
-    ].filter(num => !isNaN(num)); // Filtrar valores NaN
+      telefonoInt,                    // Número base: 549351...
+      parseInt(telefonoNormalizado.replace(/^549/, ''), 10), // Sin 549
+      parseInt(`54${telefonoNormalizado.replace(/^549/, '')}`, 10)   // Con 54
+    ].filter(num => !isNaN(num) && num !== 0); // Filtrar valores NaN
 
     // Buscar gastos que coincidan con cualquiera de las variantes
     let gastos = await Gastos.findAll({
@@ -239,23 +208,6 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
     if (!telefono) {
       return res.status(400).json({ error: "El parámetro 'telefono' es requerido." });
     }
-
-    // Función para normalizar el número de teléfono
-    const normalizarTelefono = (numero) => {
-      // Convertir a string y remover cualquier carácter que no sea dígito
-      let numeroLimpio = numero.toString().replace(/\D/g, '');
-      
-      // Si el número empieza con 549, remover el prefijo
-      if (numeroLimpio.startsWith('549')) {
-        numeroLimpio = numeroLimpio.substring(3);
-      }
-      // Si el número empieza con 54, remover el prefijo
-      else if (numeroLimpio.startsWith('54')) {
-        numeroLimpio = numeroLimpio.substring(2);
-      }
-      
-      return numeroLimpio;
-    };
 
     const telefonoNormalizado = normalizarTelefono(telefono);
 

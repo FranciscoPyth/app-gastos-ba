@@ -13,6 +13,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.2.1] - 2026-02-17
+
+### Corregido
+- **Teléfonos**: Estandarización de formato a `549...` eliminando espacios y prefijos redundantes.
+- **Movimientos**: Corrección de bug donde los movimientos de nuevos usuarios no se visualizaban por discrepancia en formato de teléfono. Ahora se buscan ambos formatos (con y sin `549`).
+- **Google Login**: Corrección de duplicación de usuarios por sensibilidad a mayúsculas en emails.
+
 ## [1.2.0] - 2026-02-17
 
 ### Agregado
