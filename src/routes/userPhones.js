@@ -8,33 +8,9 @@ const { Op } = require('sequelize');
 // Middleware de autenticación para todas las rutas
 router.use(authenticateJWT);
 
-// Helper para normalizar teléfono (Formato 549XXXXXXXXXX)
-const normalizarTelefono = (numero) => {
-    if (!numero) return null;
-    let numeroLimpio = numero.toString().replace(/\D/g, '');
+const { normalizarTelefono } = require('../utils/phoneUtils');
 
-    // Si ya empieza con 549, lo dejamos así
-    if (numeroLimpio.startsWith('549')) {
-        return numeroLimpio;
-    }
 
-    // Si empieza con 54 y NO tiene el 9 (ej: 5411...), le agregamos el 9? 
-    // Para Argentina móviles es 54 9 + área + número.
-    // Si el usuario manda 54351... asumimos que es móvil y le falta el 9? 
-    // O si manda sin prefijo internacional...
-
-    // CASO 1: Empieza con 54, pero no sigue con 9 (ej: 54351...) -> Agregar 9 después del 54
-    if (numeroLimpio.startsWith('54') && !numeroLimpio.startsWith('549')) {
-        return '549' + numeroLimpio.substring(2);
-    }
-
-    // CASO 2: No tiene el prefijo de país (ej: 351...) -> Agregar 549
-    if (!numeroLimpio.startsWith('54')) {
-        return '549' + numeroLimpio;
-    }
-
-    return numeroLimpio;
-};
 
 // POST: Solicitar verificación de teléfono
 router.post('/request-verification', async (req, res) => {
