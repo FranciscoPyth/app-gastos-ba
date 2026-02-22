@@ -27,6 +27,7 @@ app.use('/api/user/phones', require('./src/routes/userPhones'));
 app.use('/api/objetivos', require('./src/routes/objetivos'));
 app.use('/api/prestamos', require('./src/routes/prestamos'));
 app.use('/api/deudas', require('./src/routes/deudas'));
+app.use('/api/preferencias', require('./src/routes/preferencias'));
 
 // Manejo de errores
 app.use((err, req, res, next) => {

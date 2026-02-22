@@ -226,6 +226,10 @@ router.post('/', async (req, res) => {
       telefono: numeroNormalizado
     });
 
+    // 6. Seed default values (Categories, Currencies, etc.)
+    const { seedUserDefaults } = require('../utils/userUtils');
+    await seedUserDefaults(newUser.id);
+
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
       userId: newUser.id,

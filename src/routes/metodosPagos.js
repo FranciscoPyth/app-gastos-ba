@@ -78,7 +78,7 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Medio de pago no encontrado" });
     }
 
-    let updateMedioPago = await divisa.update(req.body);
+    let updateMedioPago = await medioPago.update(req.body);
     res.json(updateMedioPago);
   } catch (error) {
     if (error instanceof ValidationError) {

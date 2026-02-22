@@ -13,6 +13,19 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.2.3] - 2026-02-22
+### Added
+- Endpoint `GET /api/preferencias/por-telefono/:telefono` para extracción de catálogos para n8n.
+- Lógica de `seedUserDefaults` para inicializar categorías, divisas y medios de pago al registrarse.
+- Seguridad `x-api-key` en endpoints de preferencias y gastos por teléfono para integraciones externas.
+### Fixed
+- Bugs en las rutas PUT de `divisas`, `metodosPagos` y `tiposTransacciones`.
+
+## [1.2.2] - 2026-02-22
+
+### Corregido
+- **Movimientos (n8n)**: Se mejoró la flexibilidad en la búsqueda de teléfonos en el endpoint `consulta-telefono-pruebas`, permitiendo encontrar registros guardados sin el prefijo `549` o con prefijo `54`. Esto asegura que no se pierdan movimientos de la tabla `GastosPruebaN8N` por discrepancias de formato.
+
 ## [1.2.1] - 2026-02-17
 
 ### Corregido

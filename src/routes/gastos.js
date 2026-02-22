@@ -4,6 +4,7 @@ const { Op } = require("sequelize");
 const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios, GastosPruebaN8N } = require("../models");
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
 const { normalizarTelefono } = require('../utils/phoneUtils');
+const apiKeyMiddleware = require('../security/apiKey');
 
 // GET: Obtener todos los gastos con filtros opcionales
 
@@ -62,7 +63,7 @@ router.post("/", async (req, res) => {
 });
 
 // POST: Crear un nuevo gasto con número de teléfono (tabla de pruebas)
-router.post("/registrar-gasto-telefono", async (req, res) => {
+router.post("/registrar-gasto-telefono", apiKeyMiddleware, async (req, res) => {
   try {
     console.log("Datos recibidos para gasto con teléfono (tabla pruebas):", req.body);
 
@@ -150,7 +151,7 @@ router.delete("/:id", async (req, res) => {
 });
 
 // GET: Consultar gastos por número de teléfono
-router.get("/consulta-telefono", async (req, res) => {
+router.get("/consulta-telefono", apiKeyMiddleware, async (req, res) => {
   try {
     const telefono = req.query.telefono;
 
@@ -210,11 +211,21 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
     }
 
     const telefonoNormalizado = normalizarTelefono(telefono);
+    const numeroLocal = telefonoNormalizado.replace(/^549/, '');
+
+    // Crear variantes para la búsqueda (formato 549..., 54..., o sólo el número local)
+    const variantes = [
+      telefonoNormalizado,
+      numeroLocal,
+      '54' + numeroLocal
+    ];
 
     // Buscar gastos en la tabla de pruebas
     let gastos = await GastosPruebaN8N.findAll({
       where: {
-        numero_cel: telefonoNormalizado
+        numero_cel: {
+          [Op.in]: variantes
+        }
       },
       order: [["created_at", "DESC"]]
     });
@@ -223,6 +234,7 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
       tabla: "GastosPruebaN8N",
       telefono_consultado: telefono,
       telefono_normalizado: telefonoNormalizado,
+      variantes_buscadas: variantes,
       total_gastos: gastos.length,
       gastos: gastos
     });

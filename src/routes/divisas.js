@@ -42,7 +42,7 @@ router.get('/:id', async (req, res) => {
     let id = req.params.id;
     let divisas = await Divisas.findByPk(id);
     if (!divisas) {
-      return res.status(404).json({ error: 'Medio de pago no encontrada' });
+      return res.status(404).json({ error: 'Divisa no encontrada' });
     }
     res.json(divisas);
   } catch (error) {

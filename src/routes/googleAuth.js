@@ -47,6 +47,10 @@ router.post('/', async (req, res) => {
                 telefono: null, // Permitimos nulo ya que actualizamos el modelo
                 // googleId: googleId // Sería ideal agregar esta columna a tu tabla en el futuro
             });
+
+            // Seed default values (Categories, Currencies, etc.) for new Google user
+            const { seedUserDefaults } = require('../utils/userUtils');
+            await seedUserDefaults(user.id);
         }
 
         // 4. LOGIN: Generar tu propio JWT (igual que en el login normal)

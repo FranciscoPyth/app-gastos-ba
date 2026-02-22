@@ -41,11 +41,11 @@ router.get("/", async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     let id = req.params.id;
-    let TiposTransacciones = await TiposTransacciones.findByPk(id);
-    if (!TiposTransacciones) {
-      return res.status(404).json({ error: 'Medio de pago no encontrada' });
+    let transaccion = await TiposTransacciones.findByPk(id);
+    if (!transaccion) {
+      return res.status(404).json({ error: 'Tipo de transacción no encontrada' });
     }
-    res.json(TiposTransacciones);
+    res.json(transaccion);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
