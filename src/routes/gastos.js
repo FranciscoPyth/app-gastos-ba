@@ -210,11 +210,21 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
     }
 
     const telefonoNormalizado = normalizarTelefono(telefono);
+    const numeroLocal = telefonoNormalizado.replace(/^549/, '');
+
+    // Crear variantes para la búsqueda (formato 549..., 54..., o sólo el número local)
+    const variantes = [
+      telefonoNormalizado,
+      numeroLocal,
+      '54' + numeroLocal
+    ];
 
     // Buscar gastos en la tabla de pruebas
     let gastos = await GastosPruebaN8N.findAll({
       where: {
-        numero_cel: telefonoNormalizado
+        numero_cel: {
+          [Op.in]: variantes
+        }
       },
       order: [["created_at", "DESC"]]
     });
@@ -223,6 +233,7 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
       tabla: "GastosPruebaN8N",
       telefono_consultado: telefono,
       telefono_normalizado: telefonoNormalizado,
+      variantes_buscadas: variantes,
       total_gastos: gastos.length,
       gastos: gastos
     });
