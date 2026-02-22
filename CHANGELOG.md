@@ -13,6 +13,14 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.2.3] - 2026-02-22
+### Added
+- Endpoint `GET /api/preferencias/por-telefono/:telefono` para extracción de catálogos para n8n.
+- Lógica de `seedUserDefaults` para inicializar categorías, divisas y medios de pago al registrarse.
+- Seguridad `x-api-key` en endpoints de preferencias y gastos por teléfono para integraciones externas.
+### Fixed
+- Bugs en las rutas PUT de `divisas`, `metodosPagos` y `tiposTransacciones`.
+
 ## [1.2.2] - 2026-02-22
 
 ### Corregido
