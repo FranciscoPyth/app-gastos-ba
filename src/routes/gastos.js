@@ -3,7 +3,7 @@ const router = express.Router();
 const { Op } = require("sequelize");
 const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios, GastosPruebaN8N } = require("../models");
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
-const { normalizarTelefono } = require('../utils/phoneUtils');
+const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 const apiKeyMiddleware = require('../security/apiKey');
 
 // GET: Obtener todos los gastos con filtros opcionales
@@ -160,15 +160,10 @@ router.get("/consulta-telefono", apiKeyMiddleware, async (req, res) => {
     }
 
     const telefonoNormalizado = normalizarTelefono(telefono);
-    // Para esta búsqueda legacy, asumimos que se busca en la tabla Gastos que tiene BIGINT
-    const telefonoInt = parseInt(telefonoNormalizado, 10);
+    const variantesRaw = obtenerVariantesTelefono(telefono);
 
-    // Crear las variantes del número para buscar
-    const variantes = [
-      telefonoInt,                    // Número base: 549351...
-      parseInt(telefonoNormalizado.replace(/^549/, ''), 10), // Sin 549
-      parseInt(`54${telefonoNormalizado.replace(/^549/, '')}`, 10)   // Con 54
-    ].filter(num => !isNaN(num) && num !== 0); // Filtrar valores NaN
+    // Para esta búsqueda legacy, la columna numero_cel es BIGINT
+    const variantes = variantesRaw.map(v => parseInt(v, 10)).filter(num => !isNaN(num) && num !== 0);
 
     // Buscar gastos que coincidan con cualquiera de las variantes
     let gastos = await Gastos.findAll({
@@ -211,14 +206,7 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
     }
 
     const telefonoNormalizado = normalizarTelefono(telefono);
-    const numeroLocal = telefonoNormalizado.replace(/^549/, '');
-
-    // Crear variantes para la búsqueda (formato 549..., 54..., o sólo el número local)
-    const variantes = [
-      telefonoNormalizado,
-      numeroLocal,
-      '54' + numeroLocal
-    ];
+    const variantes = obtenerVariantesTelefono(telefono);
 
     // Buscar gastos en la tabla de pruebas
     let gastos = await GastosPruebaN8N.findAll({
