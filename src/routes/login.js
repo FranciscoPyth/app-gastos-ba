@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { Usuarios } = require('../models');
 const { Op } = require('sequelize');
 const { accessTokenSecret } = require('../security/auth');
+const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 
 router.post('/', async (req, res) => {
   // Aceptamos 'identifier' que puede ser username, email o teléfono
@@ -15,13 +16,15 @@ router.post('/', async (req, res) => {
   }
 
   try {
+    const phoneVariants = obtenerVariantesTelefono(identifier);
+
     // Buscar usuario por username, email o teléfono
     const user = await Usuarios.findOne({
       where: {
         [Op.or]: [
           { username: identifier },
           { email: identifier },
-          { telefono: identifier }
+          { telefono: { [Op.in]: phoneVariants } }
         ]
       }
     });

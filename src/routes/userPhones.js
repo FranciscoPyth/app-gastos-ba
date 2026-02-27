@@ -8,9 +8,7 @@ const { Op } = require('sequelize');
 // Middleware de autenticación para todas las rutas
 router.use(authenticateJWT);
 
-const { normalizarTelefono } = require('../utils/phoneUtils');
-
-
+const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 
 // POST: Solicitar verificación de teléfono
 router.post('/request-verification', async (req, res) => {
@@ -23,16 +21,22 @@ router.post('/request-verification', async (req, res) => {
         }
 
         const telefonoNormalizado = normalizarTelefono(telefono);
+        const variantes = obtenerVariantesTelefono(telefono);
 
         // Verificar si ya existe en UsuarioTelefonos o en Usuarios (principal)
         const existePrincipal = await Usuarios.findOne({
             where: {
-                telefono: telefonoNormalizado,
-                id: { [Op.ne]: userId } // Que no sea el mismo usuario (aunque si ya lo tiene, para qué agregarlo?)
+                telefono: { [Op.in]: variantes },
+                id: { [Op.ne]: userId } // Que no sea el mismo usuario
             }
         });
 
-        const existeAdicional = await UsuarioTelefonos.findOne({ where: { telefono: telefonoNormalizado } });
+        const existeAdicional = await UsuarioTelefonos.findOne({
+            where: {
+                telefono: { [Op.in]: variantes },
+                usuario_id: { [Op.ne]: userId }
+            }
+        });
 
         if (existePrincipal || existeAdicional) {
             // Aquí podrías decidir si permites que un número esté en varias cuentas o no.

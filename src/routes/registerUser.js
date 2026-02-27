@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const { Usuarios, PhoneVerifications, UsuarioTelefonos } = require('../models');
+const { normalizarTelefono } = require('../utils/phoneUtils');
 const Joi = require('joi');
 const axios = require('axios');
 const { PhoneNumberUtil, PhoneNumberFormat } = require('google-libphonenumber');
@@ -40,7 +41,8 @@ router.post('/init-verification', async (req, res) => {
       if (!phoneUtil.isValidNumber(number)) {
         return res.status(400).json({ message: `El número de teléfono no es válido para la región ${pais}` });
       }
-      numeroNormalizado = phoneUtil.format(number, PhoneNumberFormat.E164).replace('+', '');
+      const rawE164 = phoneUtil.format(number, PhoneNumberFormat.E164).replace('+', '');
+      numeroNormalizado = normalizarTelefono(rawE164);
     } catch (e) {
       return res.status(400).json({ message: 'Error al procesar el número de teléfono. Verifique el formato.' });
     }
@@ -176,8 +178,9 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ message: `El número de teléfono no es válido para la región ${pais}` });
       }
 
-      // Formatear a E.164 (estándar internacional: +54911...)
-      numeroNormalizado = phoneUtil.format(number, PhoneNumberFormat.E164).replace('+', '');
+      // Formatear a E.164 (estándar internacional: +54911...) e inclusive aplicar nuestra normalización
+      const rawE164 = phoneUtil.format(number, PhoneNumberFormat.E164).replace('+', '');
+      numeroNormalizado = normalizarTelefono(rawE164);
 
     } catch (e) {
       return res.status(400).json({ message: 'Error al procesar el número de teléfono. Verifique el formato.' });

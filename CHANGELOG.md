@@ -13,6 +13,15 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.3.0] - 2026-02-27
+### Added
+- Nueva utilidad `obtenerVariantesTelefono` en `phoneUtils.js` que genera combinaciones automáticas con y sin el prefijo "9" (Argentina).
+- Soporte para variantes de teléfono en los endpoints de `login`, `preferencias`, `registro` y `consulta de gastos`.
+
+### Fixed
+- **Gastos**: Corregido error de variable no definida `telefonoNormalizado` en endpoints de consulta por teléfono.
+- **Login**: Mayor flexibilidad al iniciar sesión usando el número de teléfono con o sin el dígito "9" extra.
+
 ## [1.2.3] - 2026-02-22
 ### Added
 - Endpoint `GET /api/preferencias/por-telefono/:telefono` para extracción de catálogos para n8n.

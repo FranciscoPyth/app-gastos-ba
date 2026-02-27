@@ -1,6 +1,6 @@
 const normalizarTelefono = (numero) => {
     if (!numero) return null;
-    
+
     // Convertir a string y remover cualquier carácter que no sea dígito
     let numeroLimpio = numero.toString().replace(/\D/g, '');
 
@@ -22,4 +22,26 @@ const normalizarTelefono = (numero) => {
     return numeroLimpio;
 };
 
-module.exports = { normalizarTelefono };
+/**
+ * Retorna un array con las posibles variantes de un número de teléfono.
+ * Útil para búsquedas cuando el usuario pudo registrarse con o sin el prefijo "9" (Argentina).
+ */
+const obtenerVariantesTelefono = (numero) => {
+    const normalizado = normalizarTelefono(numero);
+    if (!normalizado) return [];
+
+    const variantes = [normalizado];
+
+    // Si es un número de Argentina normalizado (empieza con 549)
+    if (normalizado && normalizado.startsWith('549')) {
+        // Agregar la variante sin el "9" (ej: 54351...)
+        variantes.push('54' + normalizado.substring(3));
+    }
+
+    return [...new Set(variantes)];
+};
+
+module.exports = {
+    normalizarTelefono,
+    obtenerVariantesTelefono
+};

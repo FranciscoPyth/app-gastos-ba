@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Usuarios, UsuarioTelefonos, Categorias, Divisas, TiposTransacciones, MetodosPagos } = require('../models');
-const { normalizarTelefono } = require('../utils/phoneUtils');
+const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 const { Op } = require('sequelize');
 const apiKeyMiddleware = require('../security/apiKey');
 
@@ -12,14 +12,18 @@ const apiKeyMiddleware = require('../security/apiKey');
 router.get('/por-telefono/:telefono', apiKeyMiddleware, async (req, res) => {
     try {
         const { telefono } = req.params;
-        const telefonoNormalizado = normalizarTelefono(telefono);
+        const variantes = obtenerVariantesTelefono(telefono);
 
         // 1. Find user by primary phone or additional phones
-        let user = await Usuarios.findOne({ where: { telefono: telefonoNormalizado } });
+        let user = await Usuarios.findOne({
+            where: {
+                telefono: { [Op.in]: variantes }
+            }
+        });
 
         if (!user) {
             const adicional = await UsuarioTelefonos.findOne({
-                where: { telefono: telefonoNormalizado },
+                where: { telefono: { [Op.in]: variantes } },
                 include: [{ model: Usuarios, as: 'Usuario' }] // Assuming association exists
             });
             if (adicional) {
