@@ -5,7 +5,7 @@ const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios,
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
 const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 const apiKeyMiddleware = require('../security/apiKey');
-const jwt = require("jsonwebtoken");
+const { authenticateJWT } = require("../security/auth");
 
 // Middleware combinado: API Key o JWT
 const combinedAuth = (req, res, next) => {
@@ -17,19 +17,8 @@ const combinedAuth = (req, res, next) => {
     return next();
   }
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: "No autorizado. Se requiere API Key o Token JWT." });
-  }
-
-  const token = authHeader.split(' ')[1];
-  jwt.verify(token, process.env.JWT_SECRET || 'tu_secreto_super_seguro_123!@#', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Token inválido o expirado." });
-    }
-    req.user = user;
-    next();
-  });
+  // Si no es sistema con API Key, validamos con JWT normal
+  authenticateJWT(req, res, next);
 };
 
 // GET: Obtener todos los gastos con filtros opcionales
