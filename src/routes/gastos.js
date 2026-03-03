@@ -5,6 +5,21 @@ const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios,
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
 const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 const apiKeyMiddleware = require('../security/apiKey');
+const { authenticateJWT } = require("../security/auth");
+
+// Middleware combinado: API Key o JWT
+const combinedAuth = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const validApiKey = process.env.API_KEY;
+
+  if (apiKey && apiKey === validApiKey) {
+    req.isSystem = true;
+    return next();
+  }
+
+  // Si no es sistema con API Key, validamos con JWT normal
+  authenticateJWT(req, res, next);
+};
 
 // GET: Obtener todos los gastos con filtros opcionales
 
@@ -63,7 +78,7 @@ router.post("/", async (req, res) => {
 });
 
 // POST: Crear un nuevo gasto con número de teléfono (tabla de pruebas)
-router.post("/registrar-gasto-telefono", apiKeyMiddleware, async (req, res) => {
+router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
   try {
     console.log("Datos recibidos para gasto con teléfono (tabla pruebas):", req.body);
 
