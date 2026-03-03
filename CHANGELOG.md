@@ -13,6 +13,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.3.2] - 2026-03-03
+### Changed
+- **Movimientos**: Se reemplazó el middleware estricto de llave de API (`apiKeyMiddleware`) en el endpoint de creación `POST /api/gastos/registrar-gasto-telefono` por un sistema doble `combinedAuth`. Ahora acepta inserciones tanto de WhatsApp Bot como de la sesión del Dashboard web.
+
 ## [1.3.1] - 2026-03-03
 ### Changed
 - **Movimientos (n8n)**: Se actualizó el endpoint de borrado (`DELETE`) y actualización (`PUT`) de `GastosPruebaN8N` para utilizar `combinedAuth` en lugar de requerir estrictamente el API Key. Esto permite que los usuarios puedan eliminar y modificar los registros ingresados vía WhatsApp directamente desde el dashboard, validando su propiedad mediante sus teléfonos asociados.
