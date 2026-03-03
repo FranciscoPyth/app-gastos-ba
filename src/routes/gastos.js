@@ -5,6 +5,32 @@ const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios,
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
 const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 const apiKeyMiddleware = require('../security/apiKey');
+const jwt = require("jsonwebtoken");
+
+// Middleware combinado: API Key o JWT
+const combinedAuth = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  const validApiKey = process.env.API_KEY;
+
+  if (apiKey && apiKey === validApiKey) {
+    req.isSystem = true;
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: "No autorizado. Se requiere API Key o Token JWT." });
+  }
+
+  const token = authHeader.split(' ')[1];
+  jwt.verify(token, process.env.JWT_SECRET || 'tu_secreto_super_seguro_123!@#', (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: "Token inválido o expirado." });
+    }
+    req.user = user;
+    next();
+  });
+};
 
 // GET: Obtener todos los gastos con filtros opcionales
 
@@ -63,7 +89,7 @@ router.post("/", async (req, res) => {
 });
 
 // POST: Crear un nuevo gasto con número de teléfono (tabla de pruebas)
-router.post("/registrar-gasto-telefono", apiKeyMiddleware, async (req, res) => {
+router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
   try {
     console.log("Datos recibidos para gasto con teléfono (tabla pruebas):", req.body);
 
