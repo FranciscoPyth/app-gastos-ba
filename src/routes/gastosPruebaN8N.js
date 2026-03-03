@@ -354,8 +354,8 @@ router.put("/:id", combinedAuth, async (req, res) => {
   }
 });
 
-// DELETE: Eliminar un gasto existente por ID (Protegido por API Key)
-router.delete("/:id", apiKeyMiddleware, async (req, res) => {
+// DELETE: Eliminar un gasto existente por ID (API Key o JWT)
+router.delete("/:id", combinedAuth, async (req, res) => {
   try {
     const id = req.params.id;
     let gasto = await GastosPruebaN8N.findByPk(id);
@@ -363,6 +363,28 @@ router.delete("/:id", apiKeyMiddleware, async (req, res) => {
     if (!gasto) {
       return res.status(404).json({ error: "Gasto no encontrado" });
     }
+
+    // --- SEGURIDAD: Verificar permisos si es usuario normal ---
+    if (!req.isSystem && res.locals.user) {
+      const userId = res.locals.user.id;
+
+      // 1. Obtener teléfonos del usuario
+      const usuario = await Usuarios.findByPk(userId, {
+        include: [{ model: UsuarioTelefonos, as: 'telefonos_adicionales' }]
+      });
+
+      let userPhones = [];
+      if (usuario.telefono) userPhones.push(usuario.telefono);
+      if (usuario.telefonos_adicionales) {
+        userPhones = userPhones.concat(usuario.telefonos_adicionales.map(t => t.telefono));
+      }
+
+      // 2. Verificar que el gasto pertenezca a uno de sus teléfonos
+      if (!userPhones.includes(gasto.numero_cel)) {
+        return res.status(403).json({ error: "No tienes permiso para eliminar este gasto" });
+      }
+    }
+    // ----------------------------------------------------------
 
     await gasto.destroy();
     res.status(204).send();

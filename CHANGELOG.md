@@ -13,6 +13,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.3.1] - 2026-03-03
+### Changed
+- **Movimientos (n8n)**: Se actualizó el endpoint de borrado (`DELETE`) y actualización (`PUT`) de `GastosPruebaN8N` para utilizar `combinedAuth` en lugar de requerir estrictamente el API Key. Esto permite que los usuarios puedan eliminar y modificar los registros ingresados vía WhatsApp directamente desde el dashboard, validando su propiedad mediante sus teléfonos asociados.
+
 ## [1.3.0] - 2026-02-27
 ### Added
 - Nueva utilidad `obtenerVariantesTelefono` en `phoneUtils.js` que genera combinaciones automáticas con y sin el prefijo "9" (Argentina).
