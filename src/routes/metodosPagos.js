@@ -7,9 +7,10 @@ const { ValidationError } = require('sequelize');
 
 // O puedes importar específicamente el modelo MetodosPagos de esta manera:
 // const MetodosPagos = db.MetodosPagos;
+const { authenticateJWT } = require('../security/auth');
 
 // GET: Obtener todos los medios de pago
-router.get("/", async (req, res) => {
+router.get("/", authenticateJWT, async (req, res) => {
   try {
     let where = {};
 
@@ -43,7 +44,7 @@ router.get("/", async (req, res) => {
 
 
 // GET: Obtener una categoría por ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateJWT, async (req, res) => {
   try {
     let id = req.params.id;
     let medioPago = await MetodosPagos.findByPk(id);
@@ -57,7 +58,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST: Crear un nuevo gasto
-router.post("/", async (req, res) => {
+router.post("/", authenticateJWT, async (req, res) => {
   try {
     let nuevoMedioPago = await MetodosPagos.create(req.body);
     res.status(201).json(nuevoMedioPago);
@@ -70,7 +71,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT: Actualizar un gasto existente por ID
-router.put("/:id", async (req, res) => {
+router.put("/:id", authenticateJWT, async (req, res) => {
   try {
     let id = req.params.id;
     let medioPago = await MetodosPagos.findByPk(id);
@@ -89,7 +90,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE: Eliminar un gasto existente por ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticateJWT, async (req, res) => {
   try {
     let id = req.params.id;
     let medioPago = await MetodosPagos.findByPk(id);

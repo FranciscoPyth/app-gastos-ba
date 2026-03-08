@@ -30,14 +30,15 @@ router.post('/', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ message: 'Usuario no encontrado' });
+      // Usar mensaje genérico para evitar enumeración de usuarios
+      return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
     // Verificar la contraseña
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Contraseña incorrecta' });
+      return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
     // Crear un token JWT

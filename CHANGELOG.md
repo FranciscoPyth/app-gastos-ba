@@ -13,6 +13,17 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.3.4] - 2026-03-08
+### Changed
+- **Seguridad (Crítico)**: Todos los endpoints expuestos (`gastos`, `categorias`, `divisas`, `metodosPagos`, `tiposTransacciones`) ahora requieren obligatoriamente de autenticación mediante JWT (`authenticateJWT`) o API Key maestro de N8N (`combinedAuth`).
+- **Seguridad**: Configuración estricta de CORS en `app.js` permitiendo explícitamente `controlalo.com.ar` y `localhost`.
+- **Seguridad**: Límite de tamaño de Payload HTTP reducido mediante `express.json({ limit: '1mb' })`.
+- **Login**: Se unificaron los mensajes de error en `login.js` a un genérico *'Credenciales inválidas'* para evitar la enumeración de usuarios.
+
+### Removed
+- **Legacy**: Se deprecó y movió el archivo `audio.js` a la carpeta `src/legacy/` dado que el análisis de texto y voz es manejado externamente por Langchain en N8N.
+
+
 ## [1.3.3] - 2026-03-08
 ### Added
 - **Usuarios**: Se agregó el nuevo endpoint `GET /api/usuarios` protegido por API Key, el cual devuelve una lista plana de usuarios y todos sus teléfonos asociados. Esto fue diseñado específicamente para la iteración de recordatorios diarios mediante flujos automatizados de n8n.

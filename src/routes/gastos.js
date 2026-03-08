@@ -23,7 +23,7 @@ const combinedAuth = (req, res, next) => {
 
 // GET: Obtener todos los gastos con filtros opcionales
 
-router.get("/", async (req, res) => {
+router.get("/", combinedAuth, async (req, res) => {
   try {
     let where = {};
 
@@ -63,7 +63,7 @@ router.get("/", async (req, res) => {
 
 
 // POST: Crear un nuevo gasto
-router.post("/", async (req, res) => {
+router.post("/", combinedAuth, async (req, res) => {
   try {
     console.log("Datos recibidos en el backend:", req.body); // Añade esta línea
     let nuevoGasto = await Gastos.create(req.body);
@@ -131,7 +131,7 @@ router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
 });
 
 // PUT: Actualizar un gasto existente por ID
-router.put("/:id", async (req, res) => {
+router.put("/:id", combinedAuth, async (req, res) => {
   try {
     let id = req.params.id;
     let gasto = await Gastos.findByPk(id);
@@ -150,7 +150,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE: Eliminar un gasto existente por ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", combinedAuth, async (req, res) => {
   try {
     let id = req.params.id;
     let gasto = await Gastos.findByPk(id);
@@ -212,7 +212,7 @@ router.get("/consulta-telefono", apiKeyMiddleware, async (req, res) => {
 });
 
 // GET: Consultar gastos desde tabla de pruebas por número de teléfono
-router.get("/consulta-telefono-pruebas", async (req, res) => {
+router.get("/consulta-telefono-pruebas", combinedAuth, async (req, res) => {
   try {
     const telefono = req.query.telefono;
 
@@ -249,7 +249,7 @@ router.get("/consulta-telefono-pruebas", async (req, res) => {
 });
 
 // GET: Obtener todos los gastos de la tabla de pruebas
-router.get("/pruebas", async (req, res) => {
+router.get("/pruebas", combinedAuth, async (req, res) => {
   try {
     let gastos = await GastosPruebaN8N.findAll({
       order: [["created_at", "DESC"]]
