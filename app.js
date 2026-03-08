@@ -4,8 +4,12 @@ const db = require('./src/models');
 const cors = require('cors');
 
 // Middleware para parsear JSON y habilitar CORS
-app.use(express.json());
-app.use(cors());
+app.use(express.json({ limit: '1mb' }));
+const corsOptions = {
+  origin: ['https://controlalo.com.ar', 'https://www.controlalo.com.ar', 'http://localhost:3000'],
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 
 // Sincronizar la base de datos
 db.sequelize.sync({ alter: true })
@@ -22,7 +26,7 @@ app.use('/api/gastosPruebaN8N', require('./src/routes/gastosPruebaN8N'));
 app.use('/api/login', require('./src/routes/login'));
 app.use('/api/google-login', require('./src/routes/googleAuth'));
 app.use('/api/register', require('./src/routes/registerUser'));
-app.use('/api/audio', require('./src/routes/audio'));
+
 app.use('/api/user/phones', require('./src/routes/userPhones'));
 app.use('/api/objetivos', require('./src/routes/objetivos'));
 app.use('/api/prestamos', require('./src/routes/prestamos'));

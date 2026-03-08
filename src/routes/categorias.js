@@ -3,9 +3,10 @@ const router = express.Router();
 const { Categorias } = require('../models');
 const { ValidationError } = require('sequelize');
 const { Op } = require('sequelize');
+const { authenticateJWT } = require('../security/auth');
 
 // GET: Obtener todas las categorías con filtros opcionales
-router.get('/', async (req, res) => {
+router.get('/', authenticateJWT, async (req, res) => {
   try {
     let where = {};
 
@@ -37,7 +38,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET: Obtener una categoría por ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateJWT, async (req, res) => {
   try {
     let id = req.params.id;
     let categoria = await Categorias.findByPk(id);
@@ -51,7 +52,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST: Crear una nueva categoría
-router.post('/', async (req, res) => {
+router.post('/', authenticateJWT, async (req, res) => {
   try {
     let nuevaCategoria = await Categorias.create(req.body);
     res.status(201).json(nuevaCategoria);
@@ -64,7 +65,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT: Actualizar una categoría existente por ID
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticateJWT, async (req, res) => {
   try {
     let id = req.params.id;
     let categoria = await Categorias.findByPk(id);
@@ -83,7 +84,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE: Eliminar una categoría existente por ID
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticateJWT, async (req, res) => {
   try {
     let id = req.params.id;
     let categoria = await Categorias.findByPk(id);
