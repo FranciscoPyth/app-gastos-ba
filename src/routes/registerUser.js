@@ -22,7 +22,9 @@ const schema = Joi.object({
 
 const verificationSchema = Joi.object({
   telefono: Joi.string().required(),
-  pais: Joi.string().length(2).uppercase().default('AR')
+  pais: Joi.string().length(2).uppercase().default('AR'),
+  username: Joi.string().alphanum().min(3).max(30).required(),
+  email: Joi.string().email().required(),
 });
 
 // Ruta para iniciar verificación
@@ -33,7 +35,25 @@ router.post('/init-verification', async (req, res) => {
       return res.status(400).json({ message: error.details[0].message });
     }
 
-    const { telefono, pais } = value;
+    const { telefono, pais, username, email } = value;
+
+    // Validación de usuario/email temprana
+    const existingUserOrEmail = await Usuarios.findOne({
+      where: {
+        [require('sequelize').Op.or]: [
+          { username },
+          { email }
+        ]
+      }
+    });
+
+    if (existingUserOrEmail) {
+      let msg = 'El usuario o email ya existe';
+      if (existingUserOrEmail.username === username) msg = 'El nombre de usuario ya está en uso';
+      if (existingUserOrEmail.email === email) msg = 'El email ya está registrado';
+      return res.status(400).json({ message: msg });
+    }
+
     let numeroNormalizado;
 
     try {
@@ -226,7 +246,8 @@ router.post('/', async (req, res) => {
       username,
       password: hashedPassword,
       email,
-      telefono: numeroNormalizado
+      telefono: numeroNormalizado,
+      has_completed_onboarding: false // Nuevos usuarios DEBEN pasar por el onboarding
     });
 
     // 6. Seed default values (Categories, Currencies, etc.)
@@ -236,7 +257,8 @@ router.post('/', async (req, res) => {
     res.status(201).json({
       message: 'Usuario registrado exitosamente',
       userId: newUser.id,
-      telefono_registrado: numeroNormalizado
+      telefono_registrado: numeroNormalizado,
+      has_completed_onboarding: false
     });
 
     // Borrar verificación usada

@@ -11,6 +11,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
 
+## [1.3.5] - 2026-03-08
+### Added
+- **Usuarios**: Se agregó el campo `has_completed_onboarding` (boolean, default true) al modelo `Usuarios` para controlar si el usuario pasó por la pantalla de bienvenida.
+- **Onboarding**: Nuevo endpoint seguro `POST /api/usuarios/complete-onboarding` para marcar como completado el flujo inicial del usuario mediante su JWT.
+
+### Changed
+- **Registro**: Al crear una cuenta en `/api/register`, ahora el usuario se guarda con `has_completed_onboarding: false` forzosamente, habilitando el disparo del flujo al loguearse.
+- **Login**: Mejoras de respuesta en el endpoint de autenticación. El objeto `user` retornado ahora expone si el usuario completó el onboarding.
+- **Verificación Temprana**: El endpoint `/init-verification` ahora valida si el nombre de usuario o email están ocupados en la BD *antes* de proceder a enviar el código de validación por WhatsApp, ahorrando costos de API.
+
 ---
 
 ## [1.3.4] - 2026-03-08

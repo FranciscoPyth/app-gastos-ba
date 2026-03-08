@@ -24,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       unique: false,
     },
+    has_completed_onboarding: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true, // Default true para los usuarios existentes
+    },
   }, {
     timestamps: false, // Deshabilita la gestión automática de timestamps
     indexes: [

@@ -39,4 +39,30 @@ router.get("/", apiKeyMiddleware, async (req, res) => {
     }
 });
 
+// GET /api/usuarios/complete-onboarding - Marcar onboarding como completado
+// Se asume el uso de un middleware de autenticación por JWT para obtener el user ID.
+// Como no veo que usuarios.js use el middleware JWT (usa apiKeyMiddleware en el GET /),
+// voy a importar el middleware de JWT que presumiblemente existe.
+// Si no existe tal como lo imagino, usaré una lógica similar a las otras rutas autenticadas.
+const { authenticateJWT } = require('../security/auth');
+
+router.post("/complete-onboarding", authenticateJWT, async (req, res) => {
+    try {
+        const userId = res.locals.user.id; // El ID extraído del token JWT por el middleware
+
+        const user = await Usuarios.findByPk(userId);
+        if (!user) {
+            return res.status(404).json({ message: "Usuario no encontrado" });
+        }
+
+        user.has_completed_onboarding = true;
+        await user.save();
+
+        res.json({ message: "Onboarding completado exitosamente", user: { has_completed_onboarding: true } });
+    } catch (error) {
+        console.error("Error al completar onboarding:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

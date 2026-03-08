@@ -60,7 +60,8 @@ router.post('/', async (req, res) => {
         id: user.id,
         username: user.username,
         email: user.email,
-        telefono: user.telefono
+        telefono: user.telefono,
+        has_completed_onboarding: user.has_completed_onboarding
       }
     });
 
