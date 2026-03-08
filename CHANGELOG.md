@@ -13,6 +13,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ---
 
+## [1.3.3] - 2026-03-08
+### Added
+- **Usuarios**: Se agregó el nuevo endpoint `GET /api/usuarios` protegido por API Key, el cual devuelve una lista plana de usuarios y todos sus teléfonos asociados. Esto fue diseñado específicamente para la iteración de recordatorios diarios mediante flujos automatizados de n8n.
+
 ## [1.3.2] - 2026-03-03
 ### Changed
 - **Movimientos**: Se reemplazó el middleware estricto de llave de API (`apiKeyMiddleware`) en el endpoint de creación `POST /api/gastos/registrar-gasto-telefono` por un sistema doble `combinedAuth`. Ahora acepta inserciones tanto de WhatsApp Bot como de la sesión del Dashboard web.
