@@ -11,6 +11,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
 
+## [1.3.6] - 2026-03-24
+### Added
+- **Usuarios**: Se incorporó el campo `foto_perfil` (tipo `LONGTEXT`) para almacenar la imagen de perfil en Base64.
+- **Perfil Endpoint**: Nueva ruta `PUT /api/usuarios/perfil` para actualizar la foto de perfil mediante JWT.
+- **Autenticación / Login**: Ambos flujos de inicio de sesión (`login` y `googleAuth`) ahora devuelven e inyectan la propiedad `foto_perfil` en los payloads retornados al frontend.
+
+### Changed
+- **Autenticación Unificada (Fix de Destructuring)**: Se ajustó críticamente el middleware `combinedAuth` debido a un error de tipeo en las importaciones, y se inyectó explícitamente `req.user` para subsanar los conflictos que causaban "Acceso denegado" al invocar endpoints de IA desde sesiones Web (JWT).
+- **Procesamiento de Entidades (Sincronización)**: Se modificó profundamente la lógica detrás de `DELETE /api/gastosPruebaN8N/:id` de manera que eliminar un movimiento proveniente de Objetivos, Préstamos o Deudas reversará/restará orgánicamente ese número en la tabla de su entidad origen, manteniendo un status de balance contable 100% consistente a lo largo del sistema.
+
 ## [1.3.5] - 2026-03-08
 ### Added
 - **Usuarios**: Se agregó el campo `has_completed_onboarding` (boolean, default true) al modelo `Usuarios` para controlar si el usuario pasó por la pantalla de bienvenida.

@@ -33,6 +33,7 @@ app.use('/api/prestamos', require('./src/routes/prestamos'));
 app.use('/api/deudas', require('./src/routes/deudas'));
 app.use('/api/preferencias', require('./src/routes/preferencias'));
 app.use('/api/usuarios', require('./src/routes/usuarios'));
+app.use('/api/ia-integration', require('./src/routes/ia-integration'));
 
 // Manejo de errores
 app.use((err, req, res, next) => {

@@ -386,6 +386,84 @@ router.delete("/:id", combinedAuth, async (req, res) => {
     }
     // ----------------------------------------------------------
 
+    // --- REVERSIÓN DE SALDOS EN ENTIDADES (Objetivos, Préstamos, Deudas) ---
+    // Si el gasto provino de un Abono, debemos restaurar/restar ese abono de la entidad original
+    try {
+        if (gasto.categoria === "Ahorro/Objetivo" && gasto.descripcion.startsWith("Ahorro objetivo: ")) {
+            const nombreObjetivo = gasto.descripcion.replace("Ahorro objetivo: ", "").trim();
+            // Buscar todos los objetivos que coincidan con el nombre y pertenezcan al usuario
+            const { Objetivos } = require("../models");
+            
+            // Requerimos userId, si es system no lo tenemos fácil a mano pero usamos el numero_cel
+            let userIdBusqueda = req.isSystem ? null : res.locals.user.id;
+            
+            if (!userIdBusqueda && req.isSystem && gasto.numero_cel) {
+                const { normalizarTelefono } = require('../utils/phoneUtils');
+                const telefonoNormalizado = normalizarTelefono(gasto.numero_cel);
+                let findUser = await Usuarios.findOne({ where: { telefono: telefonoNormalizado } });
+                if (findUser) userIdBusqueda = findUser.id;
+            }
+
+            if (userIdBusqueda) {
+                const objetivo = await Objetivos.findOne({ 
+                    where: { nombre: nombreObjetivo, user_id: userIdBusqueda } 
+                });
+                if (objetivo) {
+                    const revertido = Math.max(0, parseFloat(objetivo.monto_actual) - parseFloat(gasto.monto));
+                    await objetivo.update({ monto_actual: revertido });
+                }
+            }
+        } 
+        else if (gasto.categoria === "Préstamos" && gasto.descripcion.startsWith("Devolución préstamo: ")) {
+            const nombrePersona = gasto.descripcion.replace("Devolución préstamo: ", "").trim();
+            const { Prestamos } = require("../models");
+            
+            let userIdBusqueda = req.isSystem ? null : res.locals.user.id;
+            if (!userIdBusqueda && req.isSystem && gasto.numero_cel) {
+                const { normalizarTelefono } = require('../utils/phoneUtils');
+                const telefonoNormalizado = normalizarTelefono(gasto.numero_cel);
+                let findUser = await Usuarios.findOne({ where: { telefono: telefonoNormalizado } });
+                if (findUser) userIdBusqueda = findUser.id;
+            }
+
+            if (userIdBusqueda) {
+                const prestamo = await Prestamos.findOne({ 
+                    where: { personName: nombrePersona, user_id: userIdBusqueda } 
+                });
+                if (prestamo) {
+                    const revertido = parseFloat(prestamo.monto) + parseFloat(gasto.monto);
+                    await prestamo.update({ monto: revertido, status: "partial" }); // Puede volver a partial
+                }
+            }
+        }
+        else if (gasto.categoria === "Deudas" && gasto.descripcion.startsWith("Pago deuda: ")) {
+            const nombreAcreedor = gasto.descripcion.replace("Pago deuda: ", "").trim();
+            const { Deudas } = require("../models");
+            
+            let userIdBusqueda = req.isSystem ? null : res.locals.user.id;
+            if (!userIdBusqueda && req.isSystem && gasto.numero_cel) {
+                const { normalizarTelefono } = require('../utils/phoneUtils');
+                const telefonoNormalizado = normalizarTelefono(gasto.numero_cel);
+                let findUser = await Usuarios.findOne({ where: { telefono: telefonoNormalizado } });
+                if (findUser) userIdBusqueda = findUser.id;
+            }
+
+            if (userIdBusqueda) {
+                const deuda = await Deudas.findOne({ 
+                    where: { creditorName: nombreAcreedor, user_id: userIdBusqueda } 
+                });
+                if (deuda) {
+                    const revertido = parseFloat(deuda.loanAmount) + parseFloat(gasto.monto);
+                    await deuda.update({ loanAmount: revertido, status: "active" });
+                }
+            }
+        }
+    } catch (syncError) {
+        console.error("Error al intentar revertir los saldos de entidades vinculadas:", syncError);
+        // Continuamos con el destroy aunque la sincronización falle
+    }
+    // -------------------------------------------------------------
+
     await gasto.destroy();
     res.status(204).send();
   } catch (error) {

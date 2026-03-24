@@ -24,6 +24,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       unique: false,
     },
+    foto_perfil: {
+      type: DataTypes.TEXT('long'),
+      allowNull: true,
+    },
     has_completed_onboarding: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

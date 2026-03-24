@@ -61,6 +61,7 @@ router.post('/', async (req, res) => {
         username: user.username,
         email: user.email,
         telefono: user.telefono,
+        foto_perfil: user.foto_perfil,
         has_completed_onboarding: user.has_completed_onboarding
       }
     });

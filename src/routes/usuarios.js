@@ -65,4 +65,25 @@ router.post("/complete-onboarding", authenticateJWT, async (req, res) => {
     }
 });
 
+// PUT /api/usuarios/perfil - Actualizar foto de perfil
+router.put("/perfil", authenticateJWT, async (req, res) => {
+    try {
+        const userId = req.user ? req.user.id : res.locals.user.id;
+        const { foto_perfil } = req.body;
+
+        const user = await Usuarios.findByPk(userId);
+        if (!user) return res.status(404).json({ message: "Usuario no encontrado" });
+
+        if (foto_perfil !== undefined) {
+            user.foto_perfil = foto_perfil;
+            await user.save();
+        }
+
+        res.json({ message: "Perfil actualizado exitosamente", foto_perfil: user.foto_perfil });
+    } catch (error) {
+        console.error("Error actualizando perfil:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;
