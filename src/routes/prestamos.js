@@ -46,4 +46,23 @@ router.delete("/:id", authenticateJWT, async (req, res) => {
     }
 });
 
+// PUT
+router.put("/:id", authenticateJWT, async (req, res) => {
+    try {
+        const userId = res.locals.user.id;
+        const { id } = req.params;
+        const prestamo = await Prestamos.findOne({ where: { id, user_id: userId } });
+
+        if (!prestamo) {
+            return res.status(404).json({ error: "Prestamo no encontrado o no autorizado" });
+        }
+
+        await prestamo.update(req.body);
+        res.json(prestamo);
+    } catch (error) {
+        console.error("Error al actualizar prestamo:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

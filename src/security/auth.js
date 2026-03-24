@@ -15,6 +15,7 @@ const authenticateJWT = (req, res, next) => {
       }
 
       res.locals.user = user;
+      req.user = user; // Asigna req.user para compatibilidad con auth combinada
       next();
     });
   } else {

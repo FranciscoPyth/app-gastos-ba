@@ -59,7 +59,8 @@ router.post('/', async (req, res) => {
                 id: user.id,
                 username: user.username,
                 email: user.email,
-                telefono: user.telefono
+                telefono: user.telefono,
+                foto_perfil: user.foto_perfil
             },
             accessTokenSecret,
             { expiresIn: '24h' }
@@ -73,7 +74,9 @@ router.post('/', async (req, res) => {
                 id: user.id,
                 username: user.username,
                 email: user.email,
-                telefono: user.telefono
+                telefono: user.telefono,
+                foto_perfil: user.foto_perfil,
+                has_completed_onboarding: user.has_completed_onboarding
             }
         });
 
