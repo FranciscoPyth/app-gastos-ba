@@ -77,6 +77,7 @@ router.post('/init-verification', async (req, res) => {
 
     // Generar código de 6 dígitos
     const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedCodigo = await bcrypt.hash(codigo, 10);
 
     // Expiración en 15 minutos
     const expiresAt = new Date();
@@ -87,7 +88,7 @@ router.post('/init-verification', async (req, res) => {
 
     await PhoneVerifications.create({
       telefono: numeroNormalizado,
-      codigo: codigo,
+      codigo: hashedCodigo,
       expires_at: expiresAt,
       usuario_id: null
     });
@@ -210,12 +211,11 @@ router.post('/', async (req, res) => {
     const verification = await PhoneVerifications.findOne({
       where: {
         telefono: numeroNormalizado,
-        codigo: verificationCode,
         expires_at: { [require('sequelize').Op.gt]: new Date() }
       }
     });
 
-    if (!verification) {
+    if (!verification || !(await bcrypt.compare(verificationCode, verification.codigo))) {
       return res.status(400).json({ message: 'Código de verificación inválido o expirado' });
     }
 
