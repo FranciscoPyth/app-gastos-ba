@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { Op } = require("sequelize");
-const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios, GastosPruebaN8N } = require("../models");
+const { Gastos, MetodosPagos, Divisas, TiposTransacciones, Categorias, Usuarios, GastosPruebaN8N, Objetivos, Deudas, Prestamos, UsuarioTelefonos } = require("../models");
 const { ValidationError } = require("sequelize"); // Asegúrate de importar ValidationError
 const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 const apiKeyMiddleware = require('../security/apiKey');
@@ -113,6 +113,87 @@ router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
 
     // Crear el nuevo gasto en la tabla de pruebas
     let nuevoGasto = await GastosPruebaN8N.create(datosGasto);
+
+    // --- LÓGICA DE FORWARD SYNC PARA IA ---
+    // Si la categoría indica un flujo secundario (Deudas, Préstamos, Objetivos), lo procesamos
+    try {
+        if (datosGasto.categoria === "Ahorro/Objetivo" || datosGasto.categoria === "Deudas" || datosGasto.categoria === "Préstamos") {
+            const telefonoLimpio = normalizarTelefono(datosGasto.numero_cel);
+            
+            // 1. Obtener User ID
+            let userId = null;
+            let usuario = await Usuarios.findOne({ where: { telefono: telefonoLimpio } });
+            if (usuario) userId = usuario.id;
+            
+            if (!userId) {
+                const numeroLocal = telefonoLimpio.replace(/^549/, '');
+                let usuarioVago = await Usuarios.findOne({ where: { [Op.or]: [{ telefono: { [Op.like]: "%" + numeroLocal + "%" } }] } });
+                if (usuarioVago) userId = usuarioVago.id;
+                
+                if (!userId) {
+                    let telAdicional = await UsuarioTelefonos.findOne({ where: { [Op.or]: [{ telefono: telefonoLimpio }, { telefono: { [Op.like]: "%" + numeroLocal + "%" } }] } });
+                    if (telAdicional) userId = telAdicional.user_id;
+                }
+            }
+
+            if (userId) {
+                // Parseamos descripción para obtener el nombre de la Entidad
+                // Ej "Ahorro objetivo: Viaje a Miami" -> "Viaje a Miami"
+                let entityName = "";
+                if (datosGasto.descripcion.includes(":")) {
+                    entityName = datosGasto.descripcion.split(":")[1].trim();
+                } else {
+                    entityName = datosGasto.descripcion;
+                }
+
+                if (datosGasto.categoria === "Ahorro/Objetivo") {
+                    let obj = await Objetivos.findOne({ where: { user_id: userId, nombre: entityName }});
+                    if (obj) {
+                        await obj.update({ monto_actual: parseFloat(obj.monto_actual) + parseFloat(datosGasto.monto) });
+                    } else {
+                        await Objetivos.create({
+                            user_id: userId, nombre: entityName, monto_objetivo: parseFloat(datosGasto.monto), monto_actual: parseFloat(datosGasto.monto), fecha_limite: new Date(), descripcion: "Creado automáticamente vía WhatsApp"
+                        });
+                    }
+                } else if (datosGasto.categoria === "Deudas") {
+                    let deuda = await Deudas.findOne({ where: { user_id: userId, creditorName: entityName }});
+                    if (datosGasto.tipos_transaccion === "Ingreso") {
+                        // El usuario RECIBIÓ plata prestada. Sube su deuda.
+                        if (deuda) {
+                            await deuda.update({ loanAmount: parseFloat(deuda.loanAmount) + parseFloat(datosGasto.monto) });
+                        } else {
+                            await Deudas.create({ user_id: userId, creditorName: entityName, loanAmount: parseFloat(datosGasto.monto), currency: datosGasto.divisa || "ARS", startDate: new Date(), status: "active" });
+                        }
+                    } else {
+                        // El usuario PAGÓ deuda (Egreso). Baja su deuda.
+                        if (deuda) {
+                            let nuevoMonto = Math.max(0, deuda.loanAmount - parseFloat(datosGasto.monto));
+                            await deuda.update({ loanAmount: nuevoMonto, status: nuevoMonto <= 0 ? "closed" : deuda.status });
+                        }
+                    }
+                } else if (datosGasto.categoria === "Préstamos") {
+                    let prestamo = await Prestamos.findOne({ where: { user_id: userId, personName: entityName }});
+                    if (datosGasto.tipos_transaccion === "Egreso") {
+                        // El usuario PRESTÓ plata (salió plata). Sube lo que le deben.
+                        if (prestamo) {
+                            await prestamo.update({ amount: parseFloat(prestamo.amount) + parseFloat(datosGasto.monto) });
+                        } else {
+                            await Prestamos.create({ user_id: userId, personName: entityName, amount: parseFloat(datosGasto.monto), currency: datosGasto.divisa || "ARS", loanDate: new Date(), status: "pending" });
+                        }
+                    } else {
+                        // El usuario RECIBIÓ pago (Ingreso). Baja lo que le deben.
+                        if (prestamo) {
+                            let nuevoMonto = Math.max(0, prestamo.amount - parseFloat(datosGasto.monto));
+                            await prestamo.update({ amount: nuevoMonto, status: nuevoMonto <= 0 ? "paid" : prestamo.status });
+                        }
+                    }
+                }
+            }
+        }
+    } catch (syncError) {
+        console.error("Error en Forward Sync de IA:", syncError);
+        // No rompemos la request principal si falla la sincronización secundaria
+    }
 
     res.status(201).json({
       mensaje: "Gasto registrado exitosamente en tabla de pruebas",
