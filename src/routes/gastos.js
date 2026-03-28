@@ -156,35 +156,35 @@ router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
                         });
                     }
                 } else if (datosGasto.categoria === "Deudas") {
-                    let deuda = await Deudas.findOne({ where: { user_id: userId, creditorName: entityName }});
+                    let deuda = await Deudas.findOne({ where: { user_id: userId, nombre_acreedor: entityName }});
                     if (datosGasto.tipos_transaccion === "Ingreso") {
                         // El usuario RECIBIÓ plata prestada. Sube su deuda.
                         if (deuda) {
-                            await deuda.update({ loanAmount: parseFloat(deuda.loanAmount) + parseFloat(datosGasto.monto) });
+                            await deuda.update({ monto_prestamo: parseFloat(deuda.monto_prestamo) + parseFloat(datosGasto.monto) });
                         } else {
-                            await Deudas.create({ user_id: userId, creditorName: entityName, loanAmount: parseFloat(datosGasto.monto), currency: datosGasto.divisa || "ARS", startDate: new Date(), status: "active" });
+                            await Deudas.create({ user_id: userId, nombre_acreedor: entityName, monto_prestamo: parseFloat(datosGasto.monto), divisa: datosGasto.divisa || "ARS", fecha_inicio: new Date(), estado: "activo" });
                         }
                     } else {
                         // El usuario PAGÓ deuda (Egreso). Baja su deuda.
                         if (deuda) {
-                            let nuevoMonto = Math.max(0, deuda.loanAmount - parseFloat(datosGasto.monto));
-                            await deuda.update({ loanAmount: nuevoMonto, status: nuevoMonto <= 0 ? "closed" : deuda.status });
+                            let nuevoMonto = Math.max(0, deuda.monto_prestamo - parseFloat(datosGasto.monto));
+                            await deuda.update({ monto_prestamo: nuevoMonto, estado: nuevoMonto <= 0 ? "cerrado" : deuda.estado });
                         }
                     }
                 } else if (datosGasto.categoria === "Préstamos") {
-                    let prestamo = await Prestamos.findOne({ where: { user_id: userId, personName: entityName }});
+                    let prestamo = await Prestamos.findOne({ where: { user_id: userId, nombre_persona: entityName }});
                     if (datosGasto.tipos_transaccion === "Egreso") {
                         // El usuario PRESTÓ plata (salió plata). Sube lo que le deben.
                         if (prestamo) {
-                            await prestamo.update({ amount: parseFloat(prestamo.amount) + parseFloat(datosGasto.monto) });
+                            await prestamo.update({ monto: parseFloat(prestamo.monto) + parseFloat(datosGasto.monto) });
                         } else {
-                            await Prestamos.create({ user_id: userId, personName: entityName, amount: parseFloat(datosGasto.monto), currency: datosGasto.divisa || "ARS", loanDate: new Date(), status: "pending" });
+                            await Prestamos.create({ user_id: userId, nombre_persona: entityName, monto: parseFloat(datosGasto.monto), divisa: datosGasto.divisa || "ARS", fecha_prestamo: new Date(), estado: "pendiente" });
                         }
                     } else {
                         // El usuario RECIBIÓ pago (Ingreso). Baja lo que le deben.
                         if (prestamo) {
-                            let nuevoMonto = Math.max(0, prestamo.amount - parseFloat(datosGasto.monto));
-                            await prestamo.update({ amount: nuevoMonto, status: nuevoMonto <= 0 ? "paid" : prestamo.status });
+                            let nuevoMonto = Math.max(0, prestamo.monto - parseFloat(datosGasto.monto));
+                            await prestamo.update({ monto: nuevoMonto, estado: nuevoMonto <= 0 ? "pagado" : prestamo.estado });
                         }
                     }
                 }
