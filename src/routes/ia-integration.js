@@ -56,6 +56,11 @@ router.get("/estado-financiero", combinedAuth, async (req, res) => {
         const userId = await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
 
+        // Protección IDOR: Si no es sistema, debe ser su propio ID
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para acceder a estos datos." });
+        }
+
         const prestamos = await Prestamos.findAll({ where: { user_id: userId, estado: { [Op.ne]: "pagado" } } });
         const deudas = await Deudas.findAll({ where: { user_id: userId, estado: { [Op.ne]: "cerrado" } } });
         const objetivos = await Objetivos.findAll({ where: { user_id: userId } });
@@ -82,6 +87,11 @@ router.get("/prestamos", combinedAuth, async (req, res) => {
         const userId = await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
 
+        // Protección IDOR
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para acceder a estos datos." });
+        }
+
         const prestamos = await Prestamos.findAll({ where: { user_id: userId } });
         res.json(prestamos);
     } catch (error) {
@@ -99,15 +109,20 @@ router.post("/prestamos", combinedAuth, async (req, res) => {
         const userId = await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
 
+        // Protección IDOR
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para realizar esta acción." });
+        }
+
         const prestamo = await Prestamos.create({
             user_id: userId,
-            personName: personName,
-            amount: parseFloat(amount),
-            currency: currency || "ARS",
-            loanDate: new Date(),
-            dueDate: dueDate || new Date(),
-            description: description || "",
-            status: "pending"
+            nombre_persona: personName,
+            monto: parseFloat(amount),
+            divisa: currency || "ARS",
+            fecha_prestamo: new Date(),
+            fecha_vencimiento: dueDate || new Date(),
+            descripcion: description || "",
+            estado: "pendiente"
         });
 
         res.status(201).json(prestamo);
@@ -121,14 +136,17 @@ router.put("/prestamos/:id/abonar", combinedAuth, async (req, res) => {
         const { id } = req.params;
         const { numero_cel, monto_abono, marcar_pagado } = req.body;
         
-        let userId = null;
-        if (res.locals.user && res.locals.user.id) {
-            userId = res.locals.user.id;
-        } else if (numero_cel) {
+        let userId = req.user ? req.user.id : null;
+        if (!userId && numero_cel) {
             userId = await getUserIdByPhone(numero_cel);
         }
 
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        // Protección IDOR: Si no es sistema, debe coincidir el ID
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para realizar esta acción." });
+        }
 
         let celParaGasto = numero_cel;
         if (!celParaGasto) {
@@ -140,11 +158,11 @@ router.put("/prestamos/:id/abonar", combinedAuth, async (req, res) => {
         if (!prestamo) return res.status(404).json({ error: "Préstamo no encontrado" });
 
         const nuevoMonto = Math.max(0, parseFloat(prestamo.monto) - parseFloat(monto_abono || 0));
-        let statusToSet = marcar_pagado ? "paid" : prestamo.status;
-        if (nuevoMonto <= 0) statusToSet = "paid";
-        else statusToSet = "partial";
+        let estadoToSet = marcar_pagado ? "pagado" : prestamo.estado;
+        if (nuevoMonto <= 0) estadoToSet = "pagado";
+        else if (estadoToSet === "pendiente") estadoToSet = "pendiente"; // Mantener o cambiar a parcial si existiera en el FE
 
-        await prestamo.update({ monto: nuevoMonto, status: statusToSet });
+        await prestamo.update({ monto: nuevoMonto, estado: estadoToSet });
 
         // Si hay un abono explícito (dinero ingresando a mi bolsillo), lo registro en GastosPruebaN8N como Ingreso
         if (monto_abono > 0) {
@@ -178,6 +196,11 @@ router.get("/deudas", combinedAuth, async (req, res) => {
         const userId = await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
 
+        // Protección IDOR
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para acceder a estos datos." });
+        }
+
         const deudas = await Deudas.findAll({ where: { user_id: userId } });
         res.json(deudas);
     } catch (error) {
@@ -195,19 +218,24 @@ router.post("/deudas", combinedAuth, async (req, res) => {
         const userId = await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
 
+        // Protección IDOR
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para realizar esta acción." });
+        }
+
         const deuda = await Deudas.create({
             user_id: userId,
-            creditorName: creditorName,
-            loanAmount: parseFloat(loanAmount),
-            monthlyPayment: parseFloat(monthlyPayment || 0),
-            currency: currency || "ARS",
-            interestRate: req.body.interestRate || 0,
-            installments: req.body.installments || 1,
-            startDate: new Date(),
-            endDate: dueDate || new Date(),
-            description: description || "",
-            source: req.body.source || "Otro",
-            status: "active"
+            nombre_acreedor: creditorName,
+            monto_prestamo: parseFloat(loanAmount),
+            pago_mensual: parseFloat(monthlyPayment || 0),
+            divisa: currency || "ARS",
+            tasa_interes: req.body.interestRate || 0,
+            cantidad_cuotas: req.body.installments || 1,
+            fecha_inicio: new Date(),
+            fecha_fin: dueDate || new Date(),
+            descripcion: description || "",
+            origen: req.body.source || "Otro",
+            estado: "activo"
         });
 
         res.status(201).json(deuda);
@@ -222,8 +250,16 @@ router.put("/deudas/:id/abonar", combinedAuth, async (req, res) => {
         const { id } = req.params;
         const { numero_cel, monto_abono, marcar_cerrada } = req.body;
         
-        const userId = req.user ? req.user.userId : await getUserIdByPhone(numero_cel);
+        const userId = req.user ? req.user.id : await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        // Protección IDOR
+        if (!req.isSystem && numero_cel) {
+            const resolvedId = await getUserIdByPhone(numero_cel);
+            if (resolvedId && resolvedId.toString() !== req.user.id.toString()) {
+                return res.status(403).json({ error: "No tiene permiso para modificar datos de otro usuario." });
+            }
+        }
 
         let celParaGasto = numero_cel;
         if (!celParaGasto) {
@@ -235,12 +271,12 @@ router.put("/deudas/:id/abonar", combinedAuth, async (req, res) => {
         if (!deuda) return res.status(404).json({ error: "Deuda no encontrada" });
 
         // Calculamos la nueva deuda si solo mandan el abono parcial
-        const nuevoMonto = Math.max(0, deuda.loanAmount - (monto_abono || 0));
-        let statusToSet = marcar_cerrada ? "closed" : deuda.status;
-        if (nuevoMonto <= 0) statusToSet = "closed";
+        const nuevoMonto = Math.max(0, deuda.monto_prestamo - (monto_abono || 0));
+        let estadoToSet = marcar_cerrada ? "cerrado" : deuda.estado;
+        if (nuevoMonto <= 0) estadoToSet = "cerrado";
 
         // Actualizamos la deuda en DB con el nuevo monto
-        await deuda.update({ loanAmount: nuevoMonto, status: statusToSet });
+        await deuda.update({ monto_prestamo: nuevoMonto, estado: estadoToSet });
 
         if (monto_abono > 0) {
             await GastosPruebaN8N.create({
@@ -273,6 +309,11 @@ router.get("/objetivos", combinedAuth, async (req, res) => {
         const userId = await getUserIdByPhone(numero_cel);
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
 
+        // Protección IDOR
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para acceder a estos datos." });
+        }
+
         const objetivos = await Objetivos.findAll({ where: { user_id: userId } });
         res.json(objetivos);
     } catch (error) {
@@ -285,14 +326,17 @@ router.post("/objetivos", combinedAuth, async (req, res) => {
         const { numero_cel, nombre, monto_objetivo, fecha_limite, descripcion } = req.body;
         if (!nombre || !monto_objetivo) return res.status(400).json({ error: "nombre y monto_objetivo requeridos" });
 
-        let userId = null;
-        if (res.locals.user && res.locals.user.id) {
-            userId = res.locals.user.id;
-        } else if (numero_cel) {
+        let userId = req.user ? req.user.id : null;
+        if (!userId && numero_cel) {
             userId = await getUserIdByPhone(numero_cel);
         }
 
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        // Protección IDOR: Si no es sistema, debe coincidir el ID
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para realizar esta acción." });
+        }
 
         const objetivo = await Objetivos.create({
             user_id: userId,
@@ -317,13 +361,18 @@ router.put("/objetivos/:id/abonar", combinedAuth, async (req, res) => {
         const { numero_cel, monto_abono } = req.body;
         
         let userId = null;
-        if (res.locals.user && res.locals.user.id) {
-            userId = res.locals.user.id;
+        if (req.user && req.user.id) {
+            userId = req.user.id;
         } else if (numero_cel) {
             userId = await getUserIdByPhone(numero_cel);
         }
 
         if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        // Protección IDOR
+        if (!req.isSystem && userId.toString() !== req.user.id.toString()) {
+            return res.status(403).json({ error: "No tiene permiso para realizar esta acción." });
+        }
 
         let celParaGasto = numero_cel;
         if (!celParaGasto) {

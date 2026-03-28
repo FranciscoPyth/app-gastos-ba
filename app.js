@@ -2,6 +2,24 @@ const express = require('express');
 const app = express();
 const db = require('./src/models');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+
+// Rate Limiting Configuration
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 100, // Limit each IP to 100 requests per `window`
+  message: { message: 'Demasiadas peticiones desde esta IP, por favor intente de nuevo en 15 minutos' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  limit: 5, // Limit each IP to 5 requests per minute for auth routes
+  message: { message: 'Demasiados intentos de acceso, por favor intente de nuevo en un minuto' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Middleware para parsear JSON y habilitar CORS
 app.use(express.json({ limit: '1mb' }));
@@ -11,9 +29,13 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Sincronizar la base de datos
-db.sequelize.sync({ alter: true })
-  .then(() => console.log('Database synced'))
+// Aplicar Rate Limiting Global
+app.use('/api/', globalLimiter);
+
+// Sincronizar la base de datos de forma segura
+const syncOptions = process.env.NODE_ENV === 'production' ? {} : { alter: true };
+db.sequelize.sync(syncOptions)
+  .then(() => console.log(`Database synced (mode: ${process.env.NODE_ENV === 'production' ? 'production' : 'development/alter'})`))
   .catch(err => console.error('Error syncing database:', err));
 
 // Configurar rutas
@@ -23,9 +45,9 @@ app.use('/api/metodosPagos', require('./src/routes/metodosPagos'));
 app.use('/api/categorias', require('./src/routes/categorias'));
 app.use('/api/gastos', require('./src/routes/gastos'));
 app.use('/api/gastosPruebaN8N', require('./src/routes/gastosPruebaN8N'));
-app.use('/api/login', require('./src/routes/login'));
-app.use('/api/google-login', require('./src/routes/googleAuth'));
-app.use('/api/register', require('./src/routes/registerUser'));
+app.use('/api/login', authLimiter, require('./src/routes/login'));
+app.use('/api/google-login', authLimiter, require('./src/routes/googleAuth'));
+app.use('/api/register', authLimiter, require('./src/routes/registerUser'));
 
 app.use('/api/user/phones', require('./src/routes/userPhones'));
 app.use('/api/objetivos', require('./src/routes/objetivos'));
