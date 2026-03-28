@@ -11,6 +11,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
 
+## [1.3.7] - 2026-03-27
+### Added
+- **Inteligencia Forward Sync**: El enrutador `POST /api/gastos/registrar-gasto-telefono` ahora es capaz de enrutar orgánicamente los montos e historial hacia tablas secundarias (`Objetivos`, `Deudas`, y `Prestamos`) mediante la simple lectura semántica de su categoría en tiempo de ejecución.
+- **Unificación de Consultas (GET)**: Se rediseñó la obtención de data financiera bajo `/api/ia-integration/estado-financiero`, proveyendo de manera absoluta las tarjetas de préstamos, deudas y metas activas en un único payload ultraligero que permite reducir el consumo y entropía en llamadas de LangChain.
+
 ## [1.3.6] - 2026-03-24
 ### Added
 - **Usuarios**: Se incorporó el campo `foto_perfil` (tipo `LONGTEXT`) para almacenar la imagen de perfil en Base64.
