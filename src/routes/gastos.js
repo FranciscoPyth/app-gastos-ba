@@ -8,18 +8,7 @@ const apiKeyMiddleware = require('../security/apiKey');
 const { authenticateJWT } = require("../security/auth");
 
 // Middleware combinado: API Key o JWT
-const combinedAuth = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'];
-  const validApiKey = process.env.API_KEY;
-
-  if (apiKey && apiKey === validApiKey) {
-    req.isSystem = true;
-    return next();
-  }
-
-  // Si no es sistema con API Key, validamos con JWT normal
-  authenticateJWT(req, res, next);
-};
+const combinedAuth = require("../security/combinedAuth");
 
 // GET: Obtener todos los gastos con filtros opcionales
 
@@ -34,12 +23,21 @@ router.get("/", combinedAuth, async (req, res) => {
       };
     }
 
-    // Filtro por usuario_id
+    // Filtro por usuario_id y protección IDOR
     if (req.query.usuario_id != undefined && req.query.usuario_id !== "") {
-      where.usuario_id = req.query.usuario_id; // Asegúrate de que el campo en la base de datos sea 'usuario_id'
+      // Si no es sistema, DEBE coincidir con el usuario logueado
+      if (!req.isSystem && req.query.usuario_id.toString() !== req.user.id.toString()) {
+        return res.status(403).json({ error: "No tiene permiso para acceder a los gastos de este usuario." });
+      }
+      where.usuario_id = req.query.usuario_id;
     } else {
-      console.error("No se ha proporcionado el ID del usuario.");
-      return res.status(400).json({ error: "Falta el ID del usuario." });
+      // Si no es sistema y no envió ID, forzamos el suyo
+      if (!req.isSystem) {
+        where.usuario_id = req.user.id;
+      } else {
+        console.error("No se ha proporcionado el ID del usuario.");
+        return res.status(400).json({ error: "Falta el ID del usuario." });
+      }
     }
 
     let items = await Gastos.findAndCountAll({
@@ -169,6 +167,9 @@ router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
                         if (deuda) {
                             let nuevoMonto = Math.max(0, deuda.monto_prestamo - parseFloat(datosGasto.monto));
                             await deuda.update({ monto_prestamo: nuevoMonto, estado: nuevoMonto <= 0 ? "cerrado" : deuda.estado });
+                        } else {
+                            // Si no existe pero el usuario la registra como egreso (ej "plata que debo"), la creamos con el monto inicial
+                            await Deudas.create({ user_id: userId, nombre_acreedor: entityName, monto_prestamo: parseFloat(datosGasto.monto), divisa: datosGasto.divisa || "ARS", fecha_inicio: new Date(), estado: "activo" });
                         }
                     }
                 } else if (datosGasto.categoria === "Préstamos") {
@@ -185,6 +186,10 @@ router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
                         if (prestamo) {
                             let nuevoMonto = Math.max(0, prestamo.monto - parseFloat(datosGasto.monto));
                             await prestamo.update({ monto: nuevoMonto, estado: nuevoMonto <= 0 ? "pagado" : prestamo.estado });
+                        } else {
+                            // Caso borde: recibe plata de un préstamo no registrado, lo creamos con balance 0 o negativo? 
+                            // Por ahora, si no existe el origen, simplemente no creamos para evitar ruido,
+                            // pero para deudas sí es importante porque el bot a veces categoriza mal.
                         }
                     }
                 }
@@ -220,6 +225,11 @@ router.put("/:id", combinedAuth, async (req, res) => {
       return res.status(404).json({ error: "Gasto no encontrado" });
     }
 
+    // Protección IDOR: Verificar propiedad
+    if (!req.isSystem && gasto.usuario_id.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ error: "No tiene permiso para modificar este gasto." });
+    }
+
     let updatedGasto = await gasto.update(req.body);
     res.json(updatedGasto);
   } catch (error) {
@@ -237,6 +247,11 @@ router.delete("/:id", combinedAuth, async (req, res) => {
     let gasto = await Gastos.findByPk(id);
     if (!gasto) {
       return res.status(404).json({ error: "Gasto no encontrado" });
+    }
+
+    // Protección IDOR: Verificar propiedad
+    if (!req.isSystem && gasto.usuario_id.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ error: "No tiene permiso para eliminar este gasto." });
     }
 
     await gasto.destroy();

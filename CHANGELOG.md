@@ -10,6 +10,23 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MAJOR (X.0.0)**: Cambios en endpoints que rompen compatibilidad.
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
+13: 
+## [1.4.0] - 2026-03-28
+### Security Hardening
+- **Secretos JWT**: Se eliminaron los valores por defecto en código para `ACCESS_TOKEN_SECRET` y `REFRESH_TOKEN_SECRET`. Ahora el servidor exige su presencia en el `.env` (en producción) para arrancar.
+- **Protección contra Fuerza Bruta (Rate Limiting)**: Se implementó `express-rate-limit` globalmente (100 req/15min) y con políticas estrictas para `/api/login`, `/api/google-login` y `/api/register` (5 intentos por minuto).
+- **Mitigación IDOR (Insecure Direct Object Reference)**:
+    - Rutas de `gastos`: Ahora valida estrictamente que el `usuario_id` pertenezca al usuario autenticado (JWT) en operaciones GET, PUT y DELETE.
+    - Rutas de `ia-integration`: Se blindaron todos los endpoints financieros para impedir que un usuario consulte o modifique datos de otros pasando un `numero_cel` ajeno.
+- **Seguridad OTP**: Los códigos de verificación de 6 dígitos enviados por WhatsApp ahora se almacenan usando hashing con `bcrypt`, eliminando el riesgo de exposición de códigos activos en la base de datos.
+- **Sincronización de Base de Datos**: Se restringió el uso de `alter: true` en Sequelize únicamente a entornos de desarrollo, previniendo alteraciones accidentales de esquema en producción.
+
+### Improved Sync & Integration
+- **Deudas/Prestamos (WhatsApp Sync)**: Se mejoró la lógica de "Forward Sync" para que las deudas y préstamos se creen automáticamente si el acreedor/deudor no existe, incluso si el bot categoriza el movimiento como "Egreso".
+- **IA Integration Fix**: Se corrigieron las discrepancias de mapeo entre los campos de la base de datos (español) y los parámetros de la IA (inglés) para asegurar que las deudas y préstamos se guarden correctamente.
+
+### Changed
+- **Middleware Unificado**: Se centralizó la lógica de `combinedAuth` para asegurar que el flag `req.isSystem` esté presente y sea consistente en todo el enrutador.
 
 ## [1.3.7] - 2026-03-27
 ### Added
