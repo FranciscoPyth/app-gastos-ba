@@ -45,6 +45,32 @@ async function getUserIdByPhone(numero_cel) {
 }
 
 // ============================================
+// ======== ESTADO FINANCIERO MAESTRO =========
+// ============================================
+
+router.get("/estado-financiero", combinedAuth, async (req, res) => {
+    try {
+        const { numero_cel } = req.query;
+        if (!numero_cel) return res.status(400).json({ error: "Falta numero_cel" });
+
+        const userId = await getUserIdByPhone(numero_cel);
+        if (!userId) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        const prestamos = await Prestamos.findAll({ where: { user_id: userId, status: { [Op.ne]: "paid" } } });
+        const deudas = await Deudas.findAll({ where: { user_id: userId, status: { [Op.ne]: "closed" } } });
+        const objetivos = await Objetivos.findAll({ where: { user_id: userId } });
+
+        res.json({
+            prestamos_activos: prestamos,
+            deudas_activas: deudas,
+            objetivos_ahorro: objetivos
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// ============================================
 // ================= PRÉSTAMOS ================
 // ============================================
 
