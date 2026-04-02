@@ -10,7 +10,13 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MAJOR (X.0.0)**: Cambios en endpoints que rompen compatibilidad.
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
-13: 
+
+## [1.4.1] - 2026-04-02
+### Fixed
+- **Mapeo de Datos (IA)**: Se corrigieron inconsistencias en el mapeo de datos entre los parámetros de la IA (inglés) y las entidades de la base de datos (español) para `nombre_persona`, `divisa` en Préstamos, y `nombre_acreedor`, `divisa` en Deudas.
+- **Fechas**: La `fecha_vencimiento` o `fecha_fin` para Préstamos y Deudas ahora se registra como `null` en lugar de autocompletarse erróneamente con la fecha actual cuando no se proporciona una.
+- **Objetivos**: Se corrigió el mapeo del campo `descripcion` al crear nuevos Objetivos.
+
 ## [1.4.0] - 2026-03-28
 ### Security Hardening
 - **Secretos JWT**: Se eliminaron los valores por defecto en código para `ACCESS_TOKEN_SECRET` y `REFRESH_TOKEN_SECRET`. Ahora el servidor exige su presencia en el `.env` (en producción) para arrancar.
