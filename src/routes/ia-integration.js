@@ -120,7 +120,7 @@ router.post("/prestamos", combinedAuth, async (req, res) => {
             monto: parseFloat(amount),
             divisa: currency || "ARS",
             fecha_prestamo: new Date(),
-            fecha_vencimiento: dueDate || new Date(),
+            fecha_vencimiento: dueDate || null,
             descripcion: description || "",
             estado: "pendiente"
         });
@@ -168,10 +168,10 @@ router.put("/prestamos/:id/abonar", combinedAuth, async (req, res) => {
         if (monto_abono > 0) {
             await GastosPruebaN8N.create({
                 numero_cel: normalizarTelefono(celParaGasto),
-                descripcion: `Devolución préstamo: ${prestamo.personName}`,
+                descripcion: `Devolución préstamo: ${prestamo.nombre_persona}`,
                 monto: parseFloat(monto_abono),
                 fecha: new Date(),
-                divisa: prestamo.currency,
+                divisa: prestamo.divisa,
                 tipos_transaccion: "Ingreso",
                 categoria: "Préstamos"
             });
@@ -232,7 +232,7 @@ router.post("/deudas", combinedAuth, async (req, res) => {
             tasa_interes: req.body.interestRate || 0,
             cantidad_cuotas: req.body.installments || 1,
             fecha_inicio: new Date(),
-            fecha_fin: dueDate || new Date(),
+            fecha_fin: dueDate || null,
             descripcion: description || "",
             origen: req.body.source || "Otro",
             estado: "activo"
@@ -281,10 +281,10 @@ router.put("/deudas/:id/abonar", combinedAuth, async (req, res) => {
         if (monto_abono > 0) {
             await GastosPruebaN8N.create({
                 numero_cel: normalizarTelefono(celParaGasto),
-                descripcion: `Pago deuda: ${deuda.creditorName}`,
+                descripcion: `Pago deuda: ${deuda.nombre_acreedor}`,
                 monto: parseFloat(monto_abono),
                 fecha: new Date(),
-                divisa: deuda.currency,
+                divisa: deuda.divisa,
                 tipos_transaccion: "Gasto", // Sale dinero
                 categoria: "Deudas"
             });
@@ -344,7 +344,7 @@ router.post("/objetivos", combinedAuth, async (req, res) => {
             monto_objetivo: parseFloat(monto_objetivo),
             monto_actual: req.body.monto_actual || 0,
             fecha_limite: fecha_limite || new Date(),
-            descripcion: description || ""
+            descripcion: descripcion || ""
         });
 
         res.status(201).json(objetivo);
