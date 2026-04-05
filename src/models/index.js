@@ -60,4 +60,7 @@ db.Prestamos.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 db.Deudas = require('./deudas')(sequelize, DataTypes);
 db.Deudas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
+db.Feedback = require('./feedback')(sequelize, DataTypes);
+db.Feedback.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;
