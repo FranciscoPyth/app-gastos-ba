@@ -8,8 +8,8 @@ const { accessTokenSecret } = require('../security/auth');
 const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 
 router.post('/', async (req, res) => {
-  // Aceptamos 'identifier' que puede ser username, email o teléfono
-  const { identifier, password } = req.body;
+  // Aceptamos 'identifier' que puede ser username, email o teléfono, y un flag 'rememberSession'
+  const { identifier, password, rememberSession } = req.body;
 
   if (!identifier || !password) {
     return res.status(400).json({ message: 'Identificador y contraseña son requeridos' });
@@ -41,6 +41,9 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ message: 'Credenciales inválidas' });
     }
 
+    // Determinar expiración basado en 'rememberSession'
+    const expiresIn = rememberSession ? '7d' : '24h';
+
     // Crear un token JWT
     const token = jwt.sign(
       {
@@ -50,7 +53,7 @@ router.post('/', async (req, res) => {
         telefono: user.telefono
       },
       accessTokenSecret,
-      { expiresIn: '24h' }
+      { expiresIn }
     );
 
     res.json({
