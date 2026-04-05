@@ -55,6 +55,7 @@ app.use('/api/prestamos', require('./src/routes/prestamos'));
 app.use('/api/deudas', require('./src/routes/deudas'));
 app.use('/api/preferencias', require('./src/routes/preferencias'));
 app.use('/api/usuarios', require('./src/routes/usuarios'));
+app.use('/api/feedback', require('./src/routes/feedback'));
 app.use('/api/ia-integration', require('./src/routes/ia-integration'));
 
 // Manejo de errores
