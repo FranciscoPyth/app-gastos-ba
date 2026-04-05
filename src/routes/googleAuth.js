@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
@@ -11,7 +11,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'TU_CLIENT_ID_DE_GOOGLE
 const client = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 router.post('/', async (req, res) => {
-    const { token } = req.body;
+    const { token, rememberSession } = req.body;
 
     if (!token) {
         return res.status(400).json({ message: 'Token de Google requerido' });
@@ -26,7 +26,7 @@ router.post('/', async (req, res) => {
         const payload = ticket.getPayload();
 
         // Datos que nos da Google
-        const { email, name, sub: googleId } = payload;
+        const { email, name, picture, sub: googleId } = payload;
 
         // 2. Buscar usuario en la BD (Case insensitive)
         let user = await Usuarios.findOne({ where: { email: email.toLowerCase() } });
@@ -35,17 +35,18 @@ router.post('/', async (req, res) => {
             // 3. REGISTRO: Si no existe, lo creamos
             // Como tu modelo requiere password y telefono, generamos valores placeholder
 
-            // Generar password aleatoria segura (el usuario no la usará, entrará por Google)
+            // Generar password aleatoria segura (el usuario no la usarÃ¡, entrarÃ¡ por Google)
             const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
             const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
             // Crear usuario
             user = await Usuarios.create({
-                username: email.split('@')[0], // Usar parte del email como username inicial
+                username: name ? name : email.split('@')[0],
                 email: email,
                 password: hashedPassword,
-                telefono: null, // Permitimos nulo ya que actualizamos el modelo
-                // googleId: googleId // Sería ideal agregar esta columna a tu tabla en el futuro
+                telefono: null, // Permitimos nulo
+                foto_perfil: picture || null,
+                // googleId: googleId // SerÃ­a ideal agregar esta columna a tu tabla en el futuro
             });
 
             // Seed default values (Categories, Currencies, etc.) for new Google user
@@ -53,7 +54,8 @@ router.post('/', async (req, res) => {
             await seedUserDefaults(user.id);
         }
 
-        // 4. LOGIN: Generar tu propio JWT (igual que en el login normal)
+// 4. LOGIN: Generar tu propio JWT (igual que en el login normal)
+        const expiresIn = rememberSession ? '7d' : '24h';
         const appToken = jwt.sign(
             {
                 id: user.id,
@@ -62,7 +64,7 @@ router.post('/', async (req, res) => {
                 telefono: user.telefono
             },
             accessTokenSecret,
-            { expiresIn: '24h' }
+            { expiresIn }
         );
 
         // Responder al frontend
@@ -81,8 +83,9 @@ router.post('/', async (req, res) => {
 
     } catch (error) {
         console.error('Error en Google Login:', error);
-        res.status(401).json({ message: 'Token de Google inválido o error en el servidor', error: error.message });
+        res.status(401).json({ message: 'Token de Google invÃ¡lido o error en el servidor', error: error.message });
     }
 });
 
 module.exports = router;
+
