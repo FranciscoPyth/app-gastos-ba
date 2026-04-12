@@ -49,6 +49,8 @@ router.post('/', async (req, res) => {
                 has_completed_onboarding: false,
                 // googleId: googleId // Sería ideal agregar esta columna a tu tabla en el futuro
             });
+            
+            console.log(`[AUTH] Nuevo usuario creado vía Google: ${user.email}, has_completed_onboarding: ${user.has_completed_onboarding}`);
 
             // Seed default values (Categories, Currencies, etc.) for new Google user
             const { seedUserDefaults } = require('../utils/userUtils');
