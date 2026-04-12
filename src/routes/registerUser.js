@@ -165,6 +165,13 @@ router.post('/init-verification', async (req, res) => {
           console.error('[ERROR] Meta Response Data:', JSON.stringify(waError.response.data));
           console.error('[ERROR] Meta Response Status:', waError.response.status);
         }
+        
+        // Si falla el envío por WhatsApp, borramos la verificación inservible
+        await PhoneVerifications.destroy({ where: { telefono: numeroNormalizado } });
+        
+        return res.status(400).json({ 
+          message: 'No pudimos entregar el código por WhatsApp a este número. Por favor, asegúrate de que el número sea correcto, exista y tenga cuenta de WhatsApp activa.' 
+        });
       }
     }
 
