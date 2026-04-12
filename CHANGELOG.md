@@ -11,6 +11,10 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
 
+## [1.4.4] - 2026-04-12
+### Fixed
+- **Onboarding (Google Auth)**: Se corrigió un error donde los nuevos usuarios que se registraban mediante Google obtenían automáticamente el flag `has_completed_onboarding` en `true` (procedente del valor por defecto del modelo), saltándose la visualización inicial de bienvenida. Se cambió el valor por defecto en el modelo a `false` y se agregó traza de depuración en el proceso de creación.
+
 ## [1.4.3] - 2026-04-12
 ### Fixed
 - **Validación de Teléfonos**: Se actualizó `normalizarTelefono` para aplicar la lógica obligatoria del prefijo interno `+549` de WhatsApp de forma exclusiva si el código de país indicado por el frontend es explícitamente `AR` (Argentina), permitiendo la internacionalización plena del sistema para otros países.
