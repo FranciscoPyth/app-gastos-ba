@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
@@ -46,8 +46,11 @@ router.post('/', async (req, res) => {
                 password: hashedPassword,
                 telefono: null, // Permitimos nulo
                 foto_perfil: picture || null,
-                // googleId: googleId // SerÃ­a ideal agregar esta columna a tu tabla en el futuro
+                has_completed_onboarding: false,
+                // googleId: googleId // Sería ideal agregar esta columna a tu tabla en el futuro
             });
+            
+            console.log(`[AUTH] Nuevo usuario creado vía Google: ${user.email}, has_completed_onboarding: ${user.has_completed_onboarding}`);
 
             // Seed default values (Categories, Currencies, etc.) for new Google user
             const { seedUserDefaults } = require('../utils/userUtils');

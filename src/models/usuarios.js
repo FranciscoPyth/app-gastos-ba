@@ -31,7 +31,7 @@ module.exports = (sequelize, DataTypes) => {
     has_completed_onboarding: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
-      defaultValue: true, // Default true para los usuarios existentes
+      defaultValue: false, // Default false para que los nuevos usuarios pasen por el onboarding
     },
   }, {
     timestamps: false, // Deshabilita la gestión automática de timestamps
