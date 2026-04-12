@@ -1,4 +1,4 @@
-﻿# Changelog - Backend API
+# Changelog - Backend API
 
 Todos los cambios notables en la API backend serÃ¡n documentados en este archivo.
 
@@ -10,6 +10,11 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 *   **MAJOR (X.0.0)**: Cambios en endpoints que rompen compatibilidad.
 *   **MINOR (0.X.0)**: Nuevos endpoints o modelos de datos.
 *   **PATCH (0.0.X)**: Fixes internos, optimizaciones de consultas.
+
+## [1.4.3] - 2026-04-12
+### Fixed
+- **Validación de Teléfonos**: Se actualizó `normalizarTelefono` para aplicar la lógica obligatoria del prefijo interno `+549` de WhatsApp de forma exclusiva si el código de país indicado por el frontend es explícitamente `AR` (Argentina), permitiendo la internacionalización plena del sistema para otros países.
+- **Registro API (WhatsApp)**: Se mejoró el manejo de errores del Cloud API de Meta en el endpoint `/init-verification`. En caso de un envío fallido por problemas de conectividad o número inexistente, ahora se interrumpe y borra proactivamente la base de datos temporal, y se contesta un HTTP 400 detallando el error al frontend en lugar de un falso positivo silencioso.
 
 ## [1.4.2] - 2026-04-05
 ### Fixed
