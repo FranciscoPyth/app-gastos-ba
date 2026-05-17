@@ -37,6 +37,15 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(20),
       allowNull: true
     },
+    tarjeta_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    cuotas_total: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 1
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

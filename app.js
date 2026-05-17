@@ -57,6 +57,11 @@ app.use('/api/preferencias', require('./src/routes/preferencias'));
 app.use('/api/usuarios', require('./src/routes/usuarios'));
 app.use('/api/feedback', require('./src/routes/feedback'));
 app.use('/api/ia-integration', require('./src/routes/ia-integration'));
+app.use('/api/mercadopago', require('./src/routes/mercadopago'));
+app.use('/api/chat', require('./src/routes/chat'));
+app.use('/api/feed', require('./src/routes/feed'));
+app.use('/api/tarjetas', require('./src/routes/tarjetas'));
+app.use('/api/whatsapp', require('./src/routes/whatsappWebhook'));
 
 // Manejo de errores
 app.use((err, req, res, next) => {
@@ -68,4 +73,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  try {
+    require('./src/jobs').start();
+  } catch (err) {
+    console.error('Error iniciando jobs:', err);
+  }
 });

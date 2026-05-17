@@ -54,6 +54,16 @@ module.exports = (sequelize, DataTypes) => {
     numero_cel: {
       type: DataTypes.BIGINT,
       allowNull: true
+    },
+    tarjeta_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'TarjetasCredito', key: 'id' }
+    },
+    cuotas_total: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 1
     }
   }, { timestamps: false });
   return Gastos;
