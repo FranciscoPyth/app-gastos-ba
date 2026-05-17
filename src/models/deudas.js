@@ -9,9 +9,16 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING(100),
             allowNull: false
         },
-        monto_prestamo: {
-            type: DataTypes.DECIMAL(10, 2),
+        // Monto inicial de la deuda. Nunca cambia después de creada.
+        monto_original: {
+            type: DataTypes.DECIMAL(12, 2),
             allowNull: false
+        },
+        // Saldo pendiente. Decrece con cada pago/abono.
+        saldo_restante: {
+            type: DataTypes.DECIMAL(12, 2),
+            allowNull: false,
+            defaultValue: 0
         },
         divisa: {
             type: DataTypes.STRING(10),
@@ -22,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: true
         },
         pago_mensual: {
-            type: DataTypes.DECIMAL(10, 2),
+            type: DataTypes.DECIMAL(12, 2),
             allowNull: true
         },
         cantidad_cuotas: {
@@ -45,9 +52,10 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING(50),
             allowNull: true
         },
+        // activa | parcial | cerrada | en_mora
         estado: {
             type: DataTypes.STRING(20),
-            defaultValue: 'activo'
+            defaultValue: 'activa'
         },
         user_id: {
             type: DataTypes.INTEGER,

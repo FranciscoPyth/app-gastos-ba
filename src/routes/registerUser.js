@@ -102,7 +102,16 @@ router.post('/init-verification', async (req, res) => {
 
     if (!whatsappToken || !whatsappPhoneId) {
       console.warn('[WARNING] WhatsApp credentials (WHATSAPP_TOKEN, WHATSAPP_PHONE_ID) not found in .env. Skipping message send.');
-      console.warn('To enable WhatsApp messaging, add these variables to your .env file.');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('========================================');
+        console.log(`[DEV] Código de verificación para ${numeroNormalizado}: ${codigo}`);
+        console.log('========================================');
+        return res.json({
+          message: 'Código generado (modo dev — sin WhatsApp)',
+          dev_code: codigo,
+          requires_interaction: false
+        });
+      }
     } else {
       const whatsappUrl = `https://graph.facebook.com/v21.0/${whatsappPhoneId}/messages`;
 
