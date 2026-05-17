@@ -104,7 +104,9 @@ router.post("/registrar-gasto-telefono", combinedAuth, async (req, res) => {
       tipos_transaccion: req.body.tipos_transaccion || null,
       metodo_pago: req.body.metodo_pago || null,
       categoria: req.body.categoria || null,
-      numero_cel: normalizarTelefono(req.body.numero_cel)
+      numero_cel: normalizarTelefono(req.body.numero_cel),
+      tarjeta_id: req.body.tarjeta_id ? parseInt(req.body.tarjeta_id) : null,
+      cuotas_total: req.body.cuotas_total ? parseInt(req.body.cuotas_total) : 1
     };
 
     console.log("Datos procesados para guardar:", datosGasto);

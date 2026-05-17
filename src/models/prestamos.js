@@ -9,9 +9,16 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.STRING(100),
             allowNull: false
         },
-        monto: {
-            type: DataTypes.DECIMAL(10, 2),
+        // Monto inicial prestado. No cambia después de creado.
+        monto_original: {
+            type: DataTypes.DECIMAL(12, 2),
             allowNull: false
+        },
+        // Saldo que la persona aún te debe. Decrece con cada cobro.
+        saldo_restante: {
+            type: DataTypes.DECIMAL(12, 2),
+            allowNull: false,
+            defaultValue: 0
         },
         divisa: {
             type: DataTypes.STRING(10),
@@ -29,6 +36,7 @@ module.exports = (sequelize, DataTypes) => {
             type: DataTypes.TEXT,
             allowNull: true
         },
+        // pendiente | parcial | pagado
         estado: {
             type: DataTypes.STRING(20),
             defaultValue: 'pendiente'

@@ -84,6 +84,16 @@ router.post('/request-verification', async (req, res) => {
 
         if (!whatsappToken || !whatsappPhoneId) {
             console.warn('[WARNING] WhatsApp credentials not configured.');
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('========================================');
+                console.log(`[DEV] Código de verificación para ${telefonoNormalizado}: ${codigo}`);
+                console.log('========================================');
+                return res.json({
+                    message: 'Código generado (modo dev — sin WhatsApp)',
+                    dev_code: codigo,
+                    requires_interaction: false
+                });
+            }
         } else {
             const whatsappUrl = `https://graph.facebook.com/v21.0/${whatsappPhoneId}/messages`;
 

@@ -10,12 +10,16 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false
         },
         monto_objetivo: {
-            type: DataTypes.DECIMAL(10, 2),
+            type: DataTypes.DECIMAL(12, 2),
             allowNull: false
         },
         monto_actual: {
-            type: DataTypes.DECIMAL(10, 2),
+            type: DataTypes.DECIMAL(12, 2),
             defaultValue: 0
+        },
+        divisa: {
+            type: DataTypes.STRING(10),
+            defaultValue: 'ARS'
         },
         fecha_limite: {
             type: DataTypes.DATEONLY,
@@ -24,6 +28,11 @@ module.exports = (sequelize, DataTypes) => {
         descripcion: {
             type: DataTypes.TEXT,
             allowNull: true
+        },
+        // activa | completada
+        estado: {
+            type: DataTypes.STRING(20),
+            defaultValue: 'activa'
         },
         user_id: {
             type: DataTypes.INTEGER,

@@ -35,6 +35,7 @@ db.Usuarios = require('./usuarios')(sequelize, DataTypes);
 db.GastosPruebaN8N = require('./gastosPruebaN8N')(sequelize, DataTypes);
 db.UsuarioTelefonos = require('./usuarioTelefonos')(sequelize, DataTypes);
 db.PhoneVerifications = require('./phoneVerifications')(sequelize, DataTypes);
+db.ChatMessages = require('./chatMessages')(sequelize, DataTypes);
 
 // Associations
 db.Gastos.belongsTo(db.Divisas, { foreignKey: 'divisa_id', targetKey: 'id' });
@@ -62,5 +63,18 @@ db.Deudas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
 db.Feedback = require('./feedback')(sequelize, DataTypes);
 db.Feedback.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.Movimientos = require('./movimientos')(sequelize, DataTypes);
+db.Movimientos.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.MercadoPagoCuentas = require('./mercadoPagoCuentas')(sequelize, DataTypes);
+db.MercadoPagoCuentas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.MercadoPagoEventos = require('./mercadoPagoEventos')(sequelize, DataTypes);
+db.MercadoPagoEventos.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.TarjetasCredito = require('./tarjetasCredito')(sequelize, DataTypes);
+db.TarjetasCredito.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+db.Gastos.belongsTo(db.TarjetasCredito, { foreignKey: 'tarjeta_id', targetKey: 'id' });
 
 module.exports = db;
