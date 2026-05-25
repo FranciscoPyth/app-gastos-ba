@@ -33,7 +33,8 @@ const toolDefinitions = [
           categoria: { type: 'string', description: 'Categoría del usuario (Comida, Transporte, Sueldo, etc).' },
           fecha: { type: 'string', description: 'Fecha YYYY-MM-DD. Si no se indica usar hoy.' },
           tarjeta: { type: 'string', description: 'Nombre fuzzy de la tarjeta si la compra fue con tarjeta de crédito. Antes hacé buscar_entidad si dudás.' },
-          cuotas: { type: 'number', description: 'Cantidad de cuotas (default 1). Solo aplica con tarjeta.' }
+          cuotas: { type: 'number', description: 'Cantidad de cuotas (default 1). Solo aplica con tarjeta.' },
+          cuotas_pagadas: { type: 'number', description: 'Cuotas YA cobradas antes de hoy. Si user dice "cuota 5 de 6" → 4. Si la compra es nueva (cuota 1/N) → 0. Default 0.' }
         }
       }
     }
@@ -341,6 +342,73 @@ const toolDefinitions = [
         }
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crear_suscripcion',
+      description: 'Registra una suscripción recurrente mensual (Netflix, Apple, Claude.AI, Google Workspace, Spotify, gimnasio, etc.). NO genera egreso inmediato — el cobro real se materializa cuando se paga el resumen de la tarjeta vinculada. Para cada suscripción que mencione el usuario hacé UNA llamada separada, incluyendo USD u otras divisas.',
+      parameters: {
+        type: 'object',
+        required: ['descripcion', 'monto', 'divisa', 'dia_cobro'],
+        properties: {
+          descripcion: { type: 'string', description: 'Nombre de la suscripción. Ej: "Apple", "Claude.AI", "Spotify".' },
+          monto: { type: 'number', description: 'Monto mensual.' },
+          divisa: { type: 'string', description: 'ARS, USD, EUR, etc.' },
+          dia_cobro: { type: 'number', description: 'Día del mes en que se cobra (1-31).' },
+          tarjeta: { type: 'string', description: 'Nombre fuzzy de la tarjeta con la que se cobra. Opcional para débito automático/efectivo.' },
+          metodo_pago: { type: 'string', description: 'Solo si NO se cobra con tarjeta. Ej: "Débito automático".' },
+          categoria: { type: 'string', description: 'Default "Suscripciones".' },
+          fecha_inicio: { type: 'string', description: 'YYYY-MM-DD. Default: hoy.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_suscripciones',
+      description: 'Lista las suscripciones del usuario con su monto, día de cobro, tarjeta y estado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          estado: { type: 'string', description: 'Filtrar por estado: activa | pausada | cancelada. Default: todas.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancelar_suscripcion',
+      description: 'Cancela (soft delete) una suscripción. Antes pedile el ID con consultar_suscripciones o usá ese nombre exacto.',
+      parameters: {
+        type: 'object',
+        required: ['suscripcion_id'],
+        properties: {
+          suscripcion_id: { type: 'number' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'editar_suscripcion',
+      description: 'Actualiza campos de una suscripción (monto, día, tarjeta, estado activa/pausada). Antes consultar_suscripciones.',
+      parameters: {
+        type: 'object',
+        required: ['suscripcion_id'],
+        properties: {
+          suscripcion_id: { type: 'number' },
+          monto: { type: 'number' },
+          divisa: { type: 'string' },
+          dia_cobro: { type: 'number' },
+          tarjeta: { type: 'string', description: 'Nombre fuzzy de tarjeta nueva.' },
+          estado: { type: 'string', description: 'activa | pausada | cancelada' }
+        }
+      }
+    }
   }
 ];
 
@@ -451,7 +519,8 @@ async function runTool(name, args, ctx) {
       metodo_pago: args.metodo_pago,
       categoria: args.categoria,
       tarjeta_id,
-      cuotas_total: args.cuotas || 1
+      cuotas_total: args.cuotas || 1,
+      cuotas_pagadas: args.cuotas_pagadas || 0
     };
     const r = await axios.post(`${INTERNAL_BASE}/api/gastosPruebaN8N/`, body, { headers: apiHeaders() });
     return r.data;
@@ -634,6 +703,74 @@ async function runTool(name, args, ctx) {
       categoria: 'Pago Tarjeta'
     });
     return { ok: true, gasto, tarjeta: t.nombre };
+  }
+
+  // ---------- SUSCRIPCIONES ----------
+  // Helper: resolver tarjeta fuzzy por nombre
+  async function resolveTarjetaIdFromName(nombre) {
+    if (!nombre || !userId) return null;
+    const tokens = String(nombre).toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+    const t = await db.TarjetasCredito.findOne({
+      where: {
+        user_id: userId,
+        ...(tokens.length ? { [Op.and]: tokens.map(tk => ({ nombre: { [Op.like]: `%${tk}%` } })) } : { nombre: { [Op.like]: `%${nombre.toLowerCase()}%` } })
+      }
+    });
+    return t ? t.id : null;
+  }
+
+  if (name === 'crear_suscripcion') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const tarjeta_id = args.tarjeta ? await resolveTarjetaIdFromName(args.tarjeta) : null;
+    const s = await db.Suscripciones.create({
+      user_id: userId,
+      descripcion: args.descripcion,
+      monto: parseFloat(args.monto),
+      divisa: args.divisa,
+      dia_cobro: parseInt(args.dia_cobro),
+      tarjeta_id,
+      metodo_pago: args.metodo_pago || null,
+      categoria: args.categoria || 'Suscripciones',
+      fecha_inicio: args.fecha_inicio || new Date().toISOString().split('T')[0],
+      fecha_fin: null,
+      estado: 'activa'
+    });
+    return { ok: true, suscripcion: s, tarjeta_resuelta: tarjeta_id };
+  }
+
+  if (name === 'consultar_suscripciones') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const where = { user_id: userId };
+    if (args.estado) where.estado = args.estado;
+    const rows = await db.Suscripciones.findAll({
+      where,
+      order: [['estado', 'ASC'], ['dia_cobro', 'ASC']]
+    });
+    return rows;
+  }
+
+  if (name === 'cancelar_suscripcion') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const s = await db.Suscripciones.findOne({ where: { id: args.suscripcion_id, user_id: userId } });
+    if (!s) return { error: 'Suscripción no encontrada' };
+    await s.update({ estado: 'cancelada', fecha_fin: new Date().toISOString().split('T')[0] });
+    return { ok: true, suscripcion: s };
+  }
+
+  if (name === 'editar_suscripcion') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const s = await db.Suscripciones.findOne({ where: { id: args.suscripcion_id, user_id: userId } });
+    if (!s) return { error: 'Suscripción no encontrada' };
+    const updates = {};
+    if (args.monto != null) updates.monto = parseFloat(args.monto);
+    if (args.divisa) updates.divisa = args.divisa;
+    if (args.dia_cobro != null) updates.dia_cobro = parseInt(args.dia_cobro);
+    if (args.estado) updates.estado = args.estado;
+    if (args.tarjeta !== undefined) {
+      updates.tarjeta_id = args.tarjeta ? await resolveTarjetaIdFromName(args.tarjeta) : null;
+    }
+    await s.update(updates);
+    return { ok: true, suscripcion: s };
   }
 
   throw new Error(`Tool desconocida: ${name}`);

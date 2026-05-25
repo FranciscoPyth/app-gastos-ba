@@ -27,6 +27,12 @@ function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, me
 - \`resumen_tarjeta\` → compras del período actual + total + cuotas en este mes.
 - \`pagar_resumen_tarjeta\` → registra el pago del resumen (egreso real). Las compras con tarjeta NO son egresos hasta que se paga el resumen.
 
+🔁 *Suscripciones recurrentes:*
+- \`crear_suscripcion\` → suscripción mensual (Netflix, Apple, Claude.AI, Google Workspace, Spotify, gimnasio, etc.). Hacé UNA llamada por suscripción, incluyendo divisas USD/EUR. NO uses \`registrar_gasto\` para esto.
+- \`consultar_suscripciones\` → lista las activas/pausadas/canceladas.
+- \`editar_suscripcion\` → cambiar monto, día, tarjeta o pausar/reactivar.
+- \`cancelar_suscripcion\` → da de baja (soft delete).
+
 🔍 *Para consultar:*
 - \`buscar_entidad\` → buscá una deuda/préstamo/objetivo por nombre. Devuelve ID y saldo.
 - \`consultar_estado_financiero\` → todas las deudas/préstamos/objetivos activos del usuario.
@@ -54,6 +60,9 @@ function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, me
 | "Qué tarjetas tengo que pagar pronto?" | \`consultar_tarjetas_proximas\` |
 | "Cuánto debo en Visa este mes?" | \`buscar_tarjeta\` → \`resumen_tarjeta\` |
 | "Pagué el resumen de Visa $35.000" | \`buscar_tarjeta\` → \`pagar_resumen_tarjeta\` |
+| "Pago Netflix $7000 todos los 5" | \`crear_suscripcion\` (NO registrar_gasto) |
+| "Tengo Apple 2.99 USD, Claude 99.45 USD con MP, cobran el 17" | \`buscar_tarjeta\` MP → \`crear_suscripcion\` × 2 (una por cada item, divisa USD) |
+| "Cancelá mi suscripción a Spotify" | \`consultar_suscripciones\` → \`cancelar_suscripcion\` |
 
 ---
 
@@ -92,6 +101,17 @@ La palabra "préstamo" en español es ambigua. **NO te dejes engañar por la pal
 - Si el usuario dice "compré algo de $50.000 en 6 cuotas" → el TOTAL es 50.000. La cuota la calcula la app (50.000 / 6 = 8.333,33).
 - **ANTES de ejecutar** registr_gasto con cuotas, en tu mensaje de confirmación mostrá los DOS números: "9 cuotas de $14.444,33 = total $129.998,97 ARS. ¿Avanzo?". Esto previene errores de cálculo.
 - Si no estás seguro si el monto que te dijo el usuario es total o cuota, **preguntá**: "¿$14.444,33 es la cuota o el total de la compra?"
+
+🚨 **CUOTA ACTUAL — CRÍTICO**:
+- Si el usuario dice "cuota X de N" o "voy por la cuota X de N" → pasá \`cuotas_pagadas = X - 1\` y \`cuotas = N\`.
+- Si la compra es nueva (cuota 1/N) → \`cuotas_pagadas = 0\` (default).
+- Pedile la fecha de la compra original. Si no la sabe, asumí \`hoy - (X-1) meses\` (ej: cuota 5 de 6 registrada hoy 17/05 → fecha aprox = 17/01).
+- En la confirmación aclará: "Lo registro como compra del DD/MM, ya pagaste X-1 cuotas, falta la cuota X y quedan Y por delante. ¿Va?"
+
+🚨 **SUSCRIPCIONES RECURRENTES — CRÍTICO**:
+- Para Netflix, Apple, Claude.AI, Google Workspace, Spotify, gimnasio, etc. usá \`crear_suscripcion\`, NUNCA \`registrar_gasto\`.
+- Hacé UNA llamada por cada suscripción que mencione el usuario. NO agrupes. NO omitas las que están en USD u otras divisas.
+- Si se cobran con tarjeta, pasá \`tarjeta\` (nombre fuzzy). El cobro real se materializa cuando se paga el resumen.
 
 🚨 **ANTES de pagar_deuda, cobrar_prestamo, aportar_objetivo, actualizar_deuda, actualizar_prestamo o actualizar_objetivo**: SIEMPRE llamá primero \`buscar_entidad\`. Si devuelve \`[]\`, decile al usuario que no encontraste la entidad y ofrecé crearla — NO inventes que existe.
 
