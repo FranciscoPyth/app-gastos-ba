@@ -282,7 +282,8 @@ router.post("/", apiKeyMiddleware, async (req, res) => {
       categoria: req.body.categoria || null,
       numero_cel: normalizarTelefono(req.body.numero_cel),
       tarjeta_id: req.body.tarjeta_id ? parseInt(req.body.tarjeta_id) : null,
-      cuotas_total: req.body.cuotas_total ? parseInt(req.body.cuotas_total) : 1
+      cuotas_total: req.body.cuotas_total ? parseInt(req.body.cuotas_total) : 1,
+      cuotas_pagadas: req.body.cuotas_pagadas != null ? parseInt(req.body.cuotas_pagadas) : 0
     };
 
     let nuevoGasto = await GastosPruebaN8N.create(datosGasto);

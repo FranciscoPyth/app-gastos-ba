@@ -61,6 +61,7 @@ app.use('/api/mercadopago', require('./src/routes/mercadopago'));
 app.use('/api/chat', require('./src/routes/chat'));
 app.use('/api/feed', require('./src/routes/feed'));
 app.use('/api/tarjetas', require('./src/routes/tarjetas'));
+app.use('/api/suscripciones', require('./src/routes/suscripciones'));
 app.use('/api/whatsapp', require('./src/routes/whatsappWebhook'));
 
 // Manejo de errores
