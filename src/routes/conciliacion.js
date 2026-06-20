@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { authenticateJWT } = require('../security/auth');
 const db = require('../models');
+const conciliacionSvc = require('../services/conciliacion');
+
+// Fecha 'hoy' en Argentina (UTC-3) como YYYY-MM-DD.
+function hoyArgentina() {
+  return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+}
 
 // GET /api/conciliacion/config
 router.get('/config', authenticateJWT, async (req, res) => {
@@ -71,6 +77,50 @@ router.put('/cuentas', authenticateJWT, async (req, res) => {
       }
     }
     res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/conciliacion/pendientes?periodo=YYYY-MM-DD (default hoy)
+router.get('/pendientes', authenticateJWT, async (req, res) => {
+  try {
+    const usuario_id = res.locals.user.id;
+    const periodo = req.query.periodo || hoyArgentina();
+    const u = await db.Usuarios.findByPk(usuario_id, { attributes: ['frecuencia_conciliacion'] });
+    const pendientes = await conciliacionSvc.listarPendientes({
+      usuario_id, frecuencia: u.frecuencia_conciliacion, periodo
+    });
+    res.json({ periodo, cuentas: pendientes });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/conciliacion/cerrar  { periodo, cuentas: [{ metodopago_id, divisa_id, saldo_real, accion }] }
+router.post('/cerrar', authenticateJWT, async (req, res) => {
+  try {
+    const usuario_id = res.locals.user.id;
+    const { periodo, cuentas } = req.body;
+    if (!periodo || !Array.isArray(cuentas) || cuentas.length === 0) {
+      return res.status(400).json({ error: 'periodo y cuentas son requeridos' });
+    }
+    const u = await db.Usuarios.findByPk(usuario_id, { attributes: ['frecuencia_conciliacion'] });
+    const resumen = await conciliacionSvc.cerrarLote({
+      usuario_id, periodo, cuentas, frecuencia: u.frecuencia_conciliacion
+    });
+    res.json(resumen);
+  } catch (e) {
+    if (e.code === 'YA_CONCILIADO') return res.status(409).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/conciliacion/historial?metodopago_id=&divisa_id=
+router.get('/historial', authenticateJWT, async (req, res) => {
+  try {
+    const usuario_id = res.locals.user.id;
+    const where = { usuario_id };
+    if (req.query.metodopago_id) where.metodopago_id = req.query.metodopago_id;
+    if (req.query.divisa_id) where.divisa_id = req.query.divisa_id;
+    const rows = await db.Conciliaciones.findAll({ where, order: [['periodo', 'DESC']], limit: 90 });
+    res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
