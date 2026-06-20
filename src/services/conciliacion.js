@@ -105,7 +105,102 @@ async function listarPendientes({ usuario_id, frecuencia, periodo }) {
   return resultado;
 }
 
+// Busca un TiposTransacciones del usuario por descripción; si no existe, lo crea.
+async function findOrCreateTipo(usuario_id, descripcion) {
+  const [tipo] = await db.TiposTransacciones.findOrCreate({
+    where: { usuario_id, descripcion }
+  });
+  return tipo.id;
+}
+
+async function getCategoriaAjuste(usuario_id) {
+  const [cat] = await db.Categorias.findOrCreate({
+    where: { usuario_id, descripcion: 'Ajuste de conciliación' }
+  });
+  return cat.id;
+}
+
+// Cierra un par. Si hay diferencia y accion==='ajustar', crea un Gasto de ajuste.
+async function cerrarPar({ usuario_id, metodopago_id, divisa_id, periodo, saldo_real, accion, frecuencia }) {
+  const existente = await db.Conciliaciones.findOne({
+    where: { metodopago_id, divisa_id, periodo }
+  });
+  if (existente) {
+    const e = new Error('El período ya fue conciliado para esta cuenta');
+    e.code = 'YA_CONCILIADO';
+    throw e;
+  }
+
+  const calc = await calcularTeorico({ usuario_id, metodopago_id, divisa_id, periodo, frecuencia });
+  const real = Number(parseFloat(saldo_real).toFixed(2));
+  const diferencia = Number((real - calc.saldo_teorico).toFixed(2));
+
+  const ajustar = diferencia !== 0 && accion === 'ajustar';
+  const estado = diferencia === 0 || ajustar ? 'conciliada' : 'pendiente';
+
+  const conciliacion = await db.Conciliaciones.create({
+    usuario_id, metodopago_id, divisa_id, periodo,
+    saldo_base: calc.saldo_base,
+    saldo_teorico: calc.saldo_teorico,
+    saldo_real: real,
+    diferencia,
+    estado
+  });
+
+  let ajuste = null;
+  if (ajustar) {
+    // sobró plata (diferencia > 0) => Ingreso; faltó => Gasto
+    const tipoDescripcion = diferencia > 0 ? 'Ingreso' : 'Gasto';
+    const tipostransaccion_id = await findOrCreateTipo(usuario_id, tipoDescripcion);
+    const categoria_id = await getCategoriaAjuste(usuario_id);
+    ajuste = await db.Gastos.create({
+      descripcion: 'Ajuste de conciliación',
+      monto: Math.abs(diferencia),
+      fecha: periodo + ' 12:00:00',
+      divisa_id,
+      tipostransaccion_id,
+      metodopago_id,
+      categoria_id,
+      usuario_id,
+      conciliacion_id: conciliacion.id
+    });
+  }
+
+  return {
+    metodopago_id, divisa_id, periodo,
+    saldo_teorico: calc.saldo_teorico,
+    saldo_real: real,
+    diferencia,
+    estado,
+    ajuste_id: ajuste ? ajuste.id : null
+  };
+}
+
+// Cierra varios pares de un período y devuelve un resumen estructurado.
+async function cerrarLote({ usuario_id, periodo, cuentas, frecuencia }) {
+  const resultados = [];
+  for (const c of cuentas) {
+    const r = await cerrarPar({
+      usuario_id,
+      metodopago_id: c.metodopago_id,
+      divisa_id: c.divisa_id,
+      periodo,
+      saldo_real: c.saldo_real,
+      accion: c.accion,
+      frecuencia
+    });
+    resultados.push(r);
+  }
+  return {
+    periodo,
+    cuentas: resultados,
+    ajustadas: resultados.filter(r => r.ajuste_id).length,
+    pendientes: resultados.filter(r => r.estado === 'pendiente').length
+  };
+}
+
 module.exports = {
   getSignoTipo, addDays, calcularRangoPeriodo,
-  getSaldoBase, sumarMovimientos, calcularTeorico, listarPendientes
+  getSaldoBase, sumarMovimientos, calcularTeorico, listarPendientes,
+  findOrCreateTipo, getCategoriaAjuste, cerrarPar, cerrarLote
 };
