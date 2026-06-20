@@ -11,6 +11,11 @@ const {
     registrarCreacionPrestamo
 } = require('../utils/movimientos');
 const { Op } = require("sequelize");
+const conciliacionSvc = require('../services/conciliacion');
+
+function hoyArgentinaIA() {
+  return new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString().split('T')[0];
+}
 
 // --- UTILIDAD: Resolver User ID desde el número de teléfono (n8n WhatsApp) ---
 async function getUserIdByPhone(numero_cel) {
@@ -386,6 +391,47 @@ router.put("/objetivos/:id", combinedAuth, async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// GET /api/ia-integration/conciliacion/pendientes?numero_cel=&periodo=
+router.get('/conciliacion/pendientes', combinedAuth, async (req, res) => {
+  try {
+    const { numero_cel } = req.query;
+    if (!numero_cel) return res.status(400).json({ error: 'Falta numero_cel' });
+    const userId = await getUserIdByPhone(numero_cel);
+    if (!userId) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!checkOwnership(req, userId)) return res.status(403).json({ error: 'No autorizado' });
+
+    const periodo = req.query.periodo || hoyArgentinaIA();
+    const u = await Usuarios.findByPk(userId, { attributes: ['frecuencia_conciliacion'] });
+    const cuentas = await conciliacionSvc.listarPendientes({
+      usuario_id: userId, frecuencia: u.frecuencia_conciliacion, periodo
+    });
+    res.json({ periodo, cuentas });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/ia-integration/conciliacion/cerrar
+//   { numero_cel, periodo, cuentas: [{ metodopago_id, divisa_id, saldo_real, accion }] }
+router.post('/conciliacion/cerrar', combinedAuth, async (req, res) => {
+  try {
+    const { numero_cel, periodo, cuentas } = req.body;
+    if (!numero_cel || !periodo || !Array.isArray(cuentas) || cuentas.length === 0) {
+      return res.status(400).json({ error: 'numero_cel, periodo y cuentas son requeridos' });
+    }
+    const userId = await getUserIdByPhone(numero_cel);
+    if (!userId) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!checkOwnership(req, userId)) return res.status(403).json({ error: 'No autorizado' });
+
+    const u = await Usuarios.findByPk(userId, { attributes: ['frecuencia_conciliacion'] });
+    const resumen = await conciliacionSvc.cerrarLote({
+      usuario_id: userId, periodo, cuentas, frecuencia: u.frecuencia_conciliacion
+    });
+    res.json(resumen);
+  } catch (e) {
+    if (e.code === 'YA_CONCILIADO') return res.status(409).json({ error: e.message });
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
