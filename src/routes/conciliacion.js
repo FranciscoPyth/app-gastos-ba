@@ -59,6 +59,10 @@ router.put('/cuentas', authenticateJWT, async (req, res) => {
     if (!Array.isArray(cuentas)) return res.status(400).json({ error: 'cuentas debe ser un array' });
 
     for (const c of cuentas) {
+      // El metodopago debe pertenecer al usuario (evita configurar cuentas ajenas).
+      const propio = await db.MetodosPagos.findOne({ where: { id: c.metodopago_id, usuario_id } });
+      if (!propio) return res.status(403).json({ error: 'Método de pago no autorizado' });
+
       const [reg] = await db.CuentasConciliables.findOrCreate({
         where: { usuario_id, metodopago_id: c.metodopago_id },
         defaults: { activo: !!c.activo }
@@ -67,7 +71,7 @@ router.put('/cuentas', authenticateJWT, async (req, res) => {
 
       for (const s of (c.saldos_iniciales || [])) {
         const [si] = await db.SaldosIniciales.findOrCreate({
-          where: { metodopago_id: c.metodopago_id, divisa_id: s.divisa_id },
+          where: { usuario_id, metodopago_id: c.metodopago_id, divisa_id: s.divisa_id },
           defaults: { usuario_id, saldo_inicial: s.saldo_inicial, fecha: s.fecha }
         });
         si.saldo_inicial = s.saldo_inicial;
@@ -108,6 +112,7 @@ router.post('/cerrar', authenticateJWT, async (req, res) => {
     res.json(resumen);
   } catch (e) {
     if (e.code === 'YA_CONCILIADO') return res.status(409).json({ error: e.message });
+    if (e.code === 'NO_AUTORIZADO') return res.status(403).json({ error: e.message });
     res.status(500).json({ error: e.message });
   }
 });

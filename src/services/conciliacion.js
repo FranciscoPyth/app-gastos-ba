@@ -33,7 +33,7 @@ async function getSaldoBase({ usuario_id, metodopago_id, divisa_id, periodo }) {
   });
   if (ultimo) return parseFloat(ultimo.saldo_real);
 
-  const inicial = await db.SaldosIniciales.findOne({ where: { metodopago_id, divisa_id } });
+  const inicial = await db.SaldosIniciales.findOne({ where: { usuario_id, metodopago_id, divisa_id } });
   return inicial ? parseFloat(inicial.saldo_inicial) : 0;
 }
 
@@ -86,7 +86,7 @@ async function listarPendientes({ usuario_id, frecuencia, periodo }) {
   for (const p of pares) {
     if (!idsActivos.has(p.metodopago_id)) continue;
     const ya = await db.Conciliaciones.findOne({
-      where: { metodopago_id: p.metodopago_id, divisa_id: p.divisa_id, periodo }
+      where: { usuario_id, metodopago_id: p.metodopago_id, divisa_id: p.divisa_id, periodo }
     });
     if (ya) continue; // ya cerrado para este período
     const calc = await calcularTeorico({
@@ -122,8 +122,16 @@ async function getCategoriaAjuste(usuario_id) {
 
 // Cierra un par. Si hay diferencia y accion==='ajustar', crea un Gasto de ajuste.
 async function cerrarPar({ usuario_id, metodopago_id, divisa_id, periodo, saldo_real, accion, frecuencia }) {
+  // El metodopago debe pertenecer al usuario (evita escribir sobre cuentas ajenas).
+  const propio = await db.MetodosPagos.findOne({ where: { id: metodopago_id, usuario_id } });
+  if (!propio) {
+    const e = new Error('Método de pago no autorizado');
+    e.code = 'NO_AUTORIZADO';
+    throw e;
+  }
+
   const existente = await db.Conciliaciones.findOne({
-    where: { metodopago_id, divisa_id, periodo }
+    where: { usuario_id, metodopago_id, divisa_id, periodo }
   });
   if (existente) {
     const e = new Error('El período ya fue conciliado para esta cuenta');

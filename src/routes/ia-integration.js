@@ -430,6 +430,7 @@ router.post('/conciliacion/cerrar', combinedAuth, async (req, res) => {
     res.json(resumen);
   } catch (e) {
     if (e.code === 'YA_CONCILIADO') return res.status(409).json({ error: e.message });
+    if (e.code === 'NO_AUTORIZADO') return res.status(403).json({ error: e.message });
     res.status(500).json({ error: e.message });
   }
 });
