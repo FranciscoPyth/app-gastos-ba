@@ -4,10 +4,19 @@ const db = require('./src/models');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 
+// La app corre detrás de un reverse proxy (Next.js rewrites / nginx). Sin esto,
+// req.ip sería la IP del proxy para TODOS los usuarios y el rate limit por IP
+// se convierte en un único cupo global compartido. Con trust proxy, express usa
+// el client real de X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // Rate Limiting Configuration
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 100, // Limit each IP to 100 requests per `window`
+  // El dashboard dispara ~20-32 llamadas /api por carga (sin caché), así que el
+  // techo tiene que cubrir varias navegaciones de un usuario activo. Las rutas
+  // sensibles (login/register) tienen su propio authLimiter más estricto abajo.
+  limit: 1000, // por IP por ventana
   message: { message: 'Demasiadas peticiones desde esta IP, por favor intente de nuevo en 15 minutos' },
   standardHeaders: true,
   legacyHeaders: false,
