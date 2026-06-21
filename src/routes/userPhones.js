@@ -132,10 +132,15 @@ router.post('/request-verification', async (req, res) => {
                 });
                 console.log(`Código de verificación enviado a ${telefonoNormalizado} via Meta Cloud API`);
             } catch (waError) {
+                const metaError = waError.response?.data?.error;
                 console.error('[ERROR] Error al enviar mensaje a WhatsApp:', waError.message);
                 if (waError.response) {
                     console.error('[ERROR] Meta Response:', JSON.stringify(waError.response.data));
                 }
+                return res.status(502).json({
+                    message: 'No se pudo enviar el código por WhatsApp. Intentá de nuevo en unos minutos.',
+                    error: metaError?.message || waError.message
+                });
             }
         }
 

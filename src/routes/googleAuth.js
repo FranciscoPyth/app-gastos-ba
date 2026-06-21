@@ -80,7 +80,8 @@ router.post('/', async (req, res) => {
                 email: user.email,
                 telefono: user.telefono,
                 foto_perfil: user.foto_perfil,
-                has_completed_onboarding: user.has_completed_onboarding
+                has_completed_onboarding: user.has_completed_onboarding,
+                is_admin: user.is_admin
             }
         });
 
