@@ -33,6 +33,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false, // Default false para que los nuevos usuarios pasen por el onboarding
     },
+    is_admin: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false, // Solo cuentas de plataforma (panel de métricas)
+    },
     frecuencia_conciliacion: {
       type: DataTypes.ENUM('diaria', 'semanal', 'quincenal', 'mensual'),
       allowNull: false,
