@@ -12,20 +12,39 @@ function hoyArgentina() {
 // GET /api/conciliacion/config
 router.get('/config', authenticateJWT, async (req, res) => {
   try {
-    const u = await db.Usuarios.findByPk(res.locals.user.id, { attributes: ['frecuencia_conciliacion'] });
-    res.json({ frecuencia: u.frecuencia_conciliacion });
+    const u = await db.Usuarios.findByPk(res.locals.user.id, {
+      attributes: ['frecuencia_conciliacion', 'hora_conciliacion']
+    });
+    res.json({ frecuencia: u.frecuencia_conciliacion, hora: u.hora_conciliacion });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PUT /api/conciliacion/config  { frecuencia }
+// PUT /api/conciliacion/config  { frecuencia, hora }
 router.put('/config', authenticateJWT, async (req, res) => {
   try {
-    const { frecuencia } = req.body;
-    if (!['diaria', 'semanal', 'quincenal', 'mensual'].includes(frecuencia)) {
-      return res.status(400).json({ error: 'frecuencia inválida' });
+    const { frecuencia, hora } = req.body;
+    const cambios = {};
+    if (frecuencia !== undefined) {
+      if (!['diaria', 'semanal', 'quincenal', 'mensual'].includes(frecuencia)) {
+        return res.status(400).json({ error: 'frecuencia inválida' });
+      }
+      cambios.frecuencia_conciliacion = frecuencia;
     }
-    await db.Usuarios.update({ frecuencia_conciliacion: frecuencia }, { where: { id: res.locals.user.id } });
-    res.json({ frecuencia });
+    if (hora !== undefined) {
+      const h = Number(hora);
+      if (!Number.isInteger(h) || h < 0 || h > 23) {
+        return res.status(400).json({ error: 'hora inválida (0-23)' });
+      }
+      cambios.hora_conciliacion = h;
+    }
+    if (Object.keys(cambios).length === 0) {
+      return res.status(400).json({ error: 'nada para actualizar' });
+    }
+    await db.Usuarios.update(cambios, { where: { id: res.locals.user.id } });
+    const u = await db.Usuarios.findByPk(res.locals.user.id, {
+      attributes: ['frecuencia_conciliacion', 'hora_conciliacion']
+    });
+    res.json({ frecuencia: u.frecuencia_conciliacion, hora: u.hora_conciliacion });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -38,6 +38,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'diaria',
     },
+    hora_conciliacion: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 22, // hora del día (0-23, ART) en que se manda el recordatorio
+    },
   }, {
     timestamps: false, // Deshabilita la gestión automática de timestamps
     indexes: [

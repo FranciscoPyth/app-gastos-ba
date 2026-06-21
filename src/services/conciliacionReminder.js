@@ -37,8 +37,11 @@ async function runConciliacionReminder() {
     where: { telefono: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } }
   });
 
+  const horaActual = fecha.getUTCHours(); // hora ART (fecha ya viene corrida -3h)
+
   for (const u of usuarios) {
     try {
+      if (u.hora_conciliacion !== horaActual) continue;
       if (!cierraHoy(u.frecuencia_conciliacion, fecha)) continue;
 
       const tieneCuentas = await CuentasConciliables.count({ where: { usuario_id: u.id, activo: true } });

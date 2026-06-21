@@ -36,6 +36,13 @@ async function run() {
     console.log('  ✓ Usuarios.frecuencia_conciliacion');
   } else console.log('  • Usuarios.frecuencia_conciliacion ya existe');
 
+  if (!(await columnExists('Usuarios', 'hora_conciliacion'))) {
+    await db.sequelize.query(
+      `ALTER TABLE Usuarios ADD COLUMN hora_conciliacion INT NOT NULL DEFAULT 22`
+    );
+    console.log('  ✓ Usuarios.hora_conciliacion');
+  } else console.log('  • Usuarios.hora_conciliacion ya existe');
+
   if (!(await tableExists('Conciliaciones'))) {
     await db.sequelize.query(`
       CREATE TABLE Conciliaciones (
