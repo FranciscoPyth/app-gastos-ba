@@ -1,6 +1,8 @@
 // src/models/index.js
 const { Sequelize, DataTypes } = require('sequelize');
-require('dotenv').config();
+// Carga el .env del proyecto de forma independiente del cwd del proceso
+// (en prod pm2 corre con cwd distinto a la carpeta del proyecto).
+require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
 
 const sequelize = new Sequelize(process.env.DB_DATABASE, process.env.DB_USERNAME, process.env.DB_PASSWORD, {
   host: process.env.DB_HOST,
