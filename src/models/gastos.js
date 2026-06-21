@@ -69,6 +69,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0
+    },
+    conciliacion_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: { model: 'Conciliaciones', key: 'id' }
     }
   }, { timestamps: false });
   return Gastos;

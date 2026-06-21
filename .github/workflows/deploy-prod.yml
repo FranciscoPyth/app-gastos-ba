@@ -1,0 +1,30 @@
+name: Deploy backend a producción (DonWeb)
+
+# Al mergear/pushear a main, se conecta por SSH al VPS y corre el deploy.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # permite dispararlo a mano desde la pestaña Actions
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false   # no cortar un deploy a mitad
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH + deploy en el VPS
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 15m
+          script: |
+            set -e
+            cd "${{ vars.DEPLOY_PATH }}"
+            git fetch origin main
+            git reset --hard origin/main
+            PM2_NAME="${{ vars.PM2_NAME }}" bash scripts/deploy-prod.sh

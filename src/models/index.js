@@ -1,6 +1,8 @@
 // src/models/index.js
 const { Sequelize, DataTypes } = require('sequelize');
-require('dotenv').config();
+// Carga el .env del proyecto de forma independiente del cwd del proceso
+// (en prod pm2 corre con cwd distinto a la carpeta del proyecto).
+require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '.env') });
 
 const sequelize = new Sequelize(process.env.DB_DATABASE, process.env.DB_USERNAME, process.env.DB_PASSWORD, {
   host: process.env.DB_HOST,
@@ -36,6 +38,9 @@ db.GastosPruebaN8N = require('./gastosPruebaN8N')(sequelize, DataTypes);
 db.UsuarioTelefonos = require('./usuarioTelefonos')(sequelize, DataTypes);
 db.PhoneVerifications = require('./phoneVerifications')(sequelize, DataTypes);
 db.ChatMessages = require('./chatMessages')(sequelize, DataTypes);
+db.CuentasConciliables = require('./cuentasConciliables')(sequelize, DataTypes);
+db.SaldosIniciales = require('./saldosIniciales')(sequelize, DataTypes);
+db.Conciliaciones = require('./conciliaciones')(sequelize, DataTypes);
 
 // Associations
 db.Gastos.belongsTo(db.Divisas, { foreignKey: 'divisa_id', targetKey: 'id' });
@@ -47,6 +52,15 @@ db.Categorias.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id'
 db.Divisas.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
 db.TiposTransacciones.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
 db.MetodosPagos.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
+
+db.CuentasConciliables.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
+db.CuentasConciliables.belongsTo(db.MetodosPagos, { foreignKey: 'metodopago_id', targetKey: 'id' });
+db.SaldosIniciales.belongsTo(db.MetodosPagos, { foreignKey: 'metodopago_id', targetKey: 'id' });
+db.SaldosIniciales.belongsTo(db.Divisas, { foreignKey: 'divisa_id', targetKey: 'id' });
+db.Conciliaciones.belongsTo(db.Usuarios, { foreignKey: 'usuario_id', targetKey: 'id' });
+db.Conciliaciones.belongsTo(db.MetodosPagos, { foreignKey: 'metodopago_id', targetKey: 'id' });
+db.Conciliaciones.belongsTo(db.Divisas, { foreignKey: 'divisa_id', targetKey: 'id' });
+db.Gastos.belongsTo(db.Conciliaciones, { foreignKey: 'conciliacion_id', targetKey: 'id' });
 
 // Relación Usuarios <-> UsuarioTelefonos
 db.Usuarios.hasMany(db.UsuarioTelefonos, { foreignKey: 'usuario_id', as: 'telefonos_adicionales' });

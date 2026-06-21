@@ -33,6 +33,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false, // Default false para que los nuevos usuarios pasen por el onboarding
     },
+    frecuencia_conciliacion: {
+      type: DataTypes.ENUM('diaria', 'semanal', 'quincenal', 'mensual'),
+      allowNull: false,
+      defaultValue: 'diaria',
+    },
+    hora_conciliacion: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 22, // hora del día (0-23, ART) en que se manda el recordatorio
+    },
   }, {
     timestamps: false, // Deshabilita la gestión automática de timestamps
     indexes: [
