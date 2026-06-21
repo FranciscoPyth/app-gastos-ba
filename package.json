@@ -13,6 +13,7 @@
     "migrate:prod": "node scripts/migrate-v2.js",
     "migrate:prod:v3": "node scripts/migrate-v3.js",
     "migrate:prod:v4": "node scripts/migrate-v4.js",
+    "migrate:prod:latest": "node scripts/migrate-v4.js",
     "mp:worker": "node -r ./scripts/load-local-env scripts/mp-sync-worker.js",
     "db:up": "docker compose -f docker-compose.dev.yml up -d",
     "db:down": "docker compose -f docker-compose.dev.yml down",
