@@ -5,10 +5,15 @@ const router = express.Router();
 const db = require('../models');
 const { authenticateJWT } = require('../security/auth');
 const requireAdmin = require('../security/requireAdmin');
+const { sendTemplate } = require('../services/whatsapp/sender');
+const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 
 const QueryTypes = db.Sequelize.QueryTypes;
 const q = (sql, replacements) =>
   db.sequelize.query(sql, { type: QueryTypes.SELECT, replacements });
+
+const REENGAGE_TEMPLATE = process.env.WHATSAPP_REENGAGE_TEMPLATE || 'reenganche_controlalo';
+const REENGAGE_LANG = process.env.WHATSAPP_REENGAGE_LANG || 'es';
 
 // Subconsulta reutilizable: primera actividad por usuario (proxy de fecha de alta).
 // Combina el primer gasto (Gastos.fecha) y el primer movimiento (Movimientos.created_at).
@@ -155,6 +160,172 @@ router.get('/metrics', authenticateJWT, requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[admin/metrics] error:', err);
     res.status(500).json({ message: 'Error obteniendo métricas' });
+  }
+});
+
+// ============================================================
+//  Panel de usuarios + re-enganche
+// ============================================================
+
+// Construye el resumen enriquecido de todos los usuarios (última interacción,
+// días inactivo, alta proxy, estado de recordatorio). Reusado por la lista y el masivo.
+async function buildUsuariosResumen() {
+  const [usuarios, chatAgg, firstChat, firstAct, rem] = await Promise.all([
+    db.Usuarios.findAll({ attributes: ['id', 'username', 'email', 'telefono', 'has_completed_onboarding', 'is_admin'] }),
+    q(`SELECT wa_id, MAX(created_at) ultima, COUNT(*) total FROM ChatMessages WHERE role='user' GROUP BY wa_id`),
+    q(`SELECT wa_id, MIN(created_at) first_chat FROM ChatMessages GROUP BY wa_id`),
+    q(`SELECT user_id, MIN(d) first_activity FROM (
+         SELECT usuario_id AS user_id, DATE(fecha) AS d FROM Gastos
+         UNION ALL SELECT user_id, DATE(created_at) AS d FROM Movimientos
+       ) t GROUP BY user_id`),
+    q(`SELECT user_id, MAX(enviado_at) ultimo FROM RecordatoriosReenganche WHERE estado='enviado' GROUP BY user_id`),
+  ]);
+
+  const chatMap = {}, firstChatMap = {}, firstActMap = {}, remMap = {};
+  for (const c of chatAgg) { const k = normalizarTelefono(c.wa_id); if (k) chatMap[k] = c; }
+  for (const c of firstChat) { const k = normalizarTelefono(c.wa_id); if (k) firstChatMap[k] = c.first_chat; }
+  for (const f of firstAct) firstActMap[f.user_id] = f.first_activity;
+  for (const r of rem) remMap[r.user_id] = r.ultimo;
+
+  const now = Date.now();
+  const out = usuarios.map(u => {
+    const key = u.telefono ? normalizarTelefono(u.telefono) : null;
+    const chat = key ? chatMap[key] : null;
+    const ultima = chat ? chat.ultima : null;
+    const total = chat ? Number(chat.total) : 0;
+    const candidatos = [firstActMap[u.id], key ? firstChatMap[key] : null]
+      .filter(Boolean).map(d => new Date(d).getTime());
+    const alta = candidatos.length ? new Date(Math.min(...candidatos)).toISOString() : null;
+    const dias_inactivo = ultima ? Math.floor((now - new Date(ultima).getTime()) / 86400000) : null;
+    const ultimo_recordatorio = remMap[u.id] || null;
+    const reenganchado = !!(ultimo_recordatorio && ultima &&
+      new Date(ultima).getTime() > new Date(ultimo_recordatorio).getTime());
+    return {
+      id: u.id, username: u.username, email: u.email, telefono: u.telefono,
+      has_completed_onboarding: u.has_completed_onboarding, is_admin: u.is_admin,
+      primera_actividad: alta, ultima_interaccion: ultima, dias_inactivo,
+      total_mensajes: total, ultimo_recordatorio, reenganchado
+    };
+  });
+  out.sort((a, b) => (b.dias_inactivo ?? 99999) - (a.dias_inactivo ?? 99999));
+  return out;
+}
+
+// Envía el template de re-enganche a un usuario y registra el resultado.
+async function enviarRecordatorio(u) {
+  const to = normalizarTelefono(u.telefono);
+  try {
+    const data = await sendTemplate({
+      to, templateName: REENGAGE_TEMPLATE, languageCode: REENGAGE_LANG,
+      bodyParams: [u.username || 'amig@']
+    });
+    const waId = data && data.messages && data.messages[0] && data.messages[0].id;
+    await db.RecordatoriosReenganche.create({
+      user_id: u.id, enviado_at: new Date(), template: REENGAGE_TEMPLATE,
+      estado: 'enviado', wa_message_id: waId || null
+    });
+    return { ok: true, estado: 'enviado', user_id: u.id, wa_message_id: waId || null };
+  } catch (err) {
+    const msg = err.response && err.response.data ? JSON.stringify(err.response.data) : err.message;
+    await db.RecordatoriosReenganche.create({
+      user_id: u.id, enviado_at: new Date(), template: REENGAGE_TEMPLATE,
+      estado: 'error', error: String(msg).slice(0, 1000)
+    });
+    return { ok: false, estado: 'error', user_id: u.id, error: msg };
+  }
+}
+
+// GET /api/admin/usuarios — lista completa con métricas de actividad.
+router.get('/usuarios', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const usuarios = await buildUsuariosResumen();
+    res.json({ generado: new Date().toISOString(), total: usuarios.length, usuarios });
+  } catch (err) {
+    console.error('[admin/usuarios] error:', err);
+    res.status(500).json({ message: 'Error obteniendo usuarios' });
+  }
+});
+
+// GET /api/admin/usuarios/:id/timeline — historial de un usuario.
+router.get('/usuarios/:id/timeline', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const u = await db.Usuarios.findByPk(id);
+    if (!u) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    let mensajes = [];
+    if (u.telefono) {
+      const variantes = obtenerVariantesTelefono(u.telefono);
+      if (variantes.length) {
+        mensajes = await q(
+          `SELECT role, LEFT(content, 140) contenido, created_at
+           FROM ChatMessages WHERE wa_id IN (:v) ORDER BY created_at ASC LIMIT 300`,
+          { v: variantes }
+        );
+      }
+    }
+    const fa = await q(
+      `SELECT MIN(d) alta FROM (
+         SELECT DATE(fecha) d FROM Gastos WHERE usuario_id = :id
+         UNION ALL SELECT DATE(created_at) d FROM Movimientos WHERE user_id = :id
+       ) t`, { id });
+    let alta = fa[0] && fa[0].alta ? new Date(fa[0].alta).getTime() : null;
+    if (mensajes.length) {
+      const fc = new Date(mensajes[0].created_at).getTime();
+      alta = alta ? Math.min(alta, fc) : fc;
+    }
+    const recordatorios = await q(
+      `SELECT enviado_at, estado FROM RecordatoriosReenganche WHERE user_id = :id ORDER BY enviado_at ASC`,
+      { id });
+
+    res.json({
+      usuario: { id: u.id, username: u.username, email: u.email, telefono: u.telefono },
+      alta: alta ? new Date(alta).toISOString() : null,
+      total_mensajes: mensajes.filter(m => m.role === 'user').length,
+      mensajes, recordatorios
+    });
+  } catch (err) {
+    console.error('[admin/usuarios/timeline] error:', err);
+    res.status(500).json({ message: 'Error obteniendo timeline' });
+  }
+});
+
+// POST /api/admin/usuarios/:id/recordatorio — envía el template a un usuario.
+router.post('/usuarios/:id/recordatorio', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const u = await db.Usuarios.findByPk(id);
+    if (!u) return res.status(404).json({ message: 'Usuario no encontrado' });
+    if (!u.telefono) return res.status(400).json({ message: 'El usuario no tiene teléfono' });
+    const r = await enviarRecordatorio(u);
+    if (r.estado === 'error') return res.status(502).json(r);
+    res.json(r);
+  } catch (err) {
+    console.error('[admin/recordatorio] error:', err);
+    res.status(500).json({ message: 'Error enviando recordatorio' });
+  }
+});
+
+// POST /api/admin/usuarios/recordatorio-masivo { dias } — a todos los inactivos >= dias (no admins).
+router.post('/usuarios/recordatorio-masivo', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const dias = Math.max(0, parseInt(req.body && req.body.dias, 10) || 0);
+    const resumen = await buildUsuariosResumen();
+    const targetsResumen = resumen.filter(u =>
+      u.telefono && !u.is_admin && (u.dias_inactivo === null || u.dias_inactivo >= dias));
+
+    let enviados = 0, errores = 0;
+    const detalle = [];
+    for (const t of targetsResumen) {
+      const u = await db.Usuarios.findByPk(t.id);
+      const r = await enviarRecordatorio(u);
+      if (r.estado === 'enviado') enviados++; else errores++;
+      detalle.push({ user_id: t.id, username: t.username, estado: r.estado, error: r.error });
+    }
+    res.json({ dias, total: targetsResumen.length, enviados, errores, detalle });
+  } catch (err) {
+    console.error('[admin/recordatorio-masivo] error:', err);
+    res.status(500).json({ message: 'Error en envío masivo' });
   }
 });
 
