@@ -1,51 +1,47 @@
-// Sincronización de movimientos de Mercado Pago hacia GastosPruebaN8N.
+// Sincronización de movimientos de Mercado Pago.
 //
 // Para cada usuario con cuenta MP activa:
 //   1. Trae payments desde last_sync_at (via /v1/payments/search).
-//   2. Intenta también /users/{id}/mercadopago_account/movements (no garantizado).
-//   3. Por cada item: deduplica via MercadoPagoEventos, crea registro espejo
-//      en GastosPruebaN8N, marca el evento como procesado.
+//   2. Por cada item nuevo: deduplica via MercadoPagoEventos y lo guarda con
+//      estado 'pendiente_descripcion' (NO crea el gasto todavía).
+//   3. Le manda un WhatsApp al usuario preguntando a qué se debió el movimiento.
+//      El gasto se registra recién cuando el usuario responde (tool
+//      describir_movimiento_mp en el agente IA).
 //   4. Actualiza last_sync_at.
 const db = require('../models');
 const mp = require('./mercadopago');
-const { normalizarTelefono } = require('./phoneUtils');
+const { sendText } = require('../services/whatsapp/sender');
 
-function mapPaymentToGasto(payment, mpUserId, userPhone) {
-    // Si el usuario es el cobrador (collector), es ingreso.
-    // Si es el pagador (payer), es gasto.
+// operation_type que SÍ representan gastos/ingresos reales y se preguntan.
+// Se excluyen 'investment' (capital al/del fondo, no es gasto; los rendimientos
+// no se emiten como movimiento) y 'partition_transfer' (interno ARS/USD).
+// Verificado empíricamente contra la cuenta real (scripts/mp-probe.js).
+const ALLOWED_OPS = new Set(['regular_payment', 'money_transfer', 'account_fund']);
+
+// Deriva los datos básicos del movimiento (sentido, monto, divisa, comercio).
+function derivePayment(payment, mpUserId) {
+    // Si el usuario es el cobrador (collector), es ingreso. Si es el pagador, gasto.
     const collectorId = payment.collector_id || (payment.collector && payment.collector.id);
-    const payerId = payment.payer && payment.payer.id;
     const isIncome = String(collectorId) === String(mpUserId);
-    const isExpense = String(payerId) === String(mpUserId);
-
-    // Si no podemos determinar, asumimos gasto (más conservador).
-    const tipo = isIncome ? 'Ingreso' : (isExpense ? 'Gasto' : 'Gasto');
+    const tipo = isIncome ? 'Ingreso' : 'Gasto';
 
     const monto = parseFloat(payment.transaction_amount || 0);
     const divisa = (payment.currency_id || 'ARS').toUpperCase();
 
-    let descripcion = payment.description || '';
-    if (!descripcion && payment.additional_info && Array.isArray(payment.additional_info.items)) {
-        descripcion = payment.additional_info.items.map(i => i.title).filter(Boolean).join(', ');
-    }
-    if (!descripcion) {
-        descripcion = isIncome
-            ? `Cobro MP de ${payment.payer && (payment.payer.email || payment.payer.first_name) || 'desconocido'}`
-            : `Pago MP a ${payment.point_of_interaction && payment.point_of_interaction.transaction_data && payment.point_of_interaction.transaction_data.merchant_id || payment.description || 'desconocido'}`;
+    // Hint del comercio: solo descripción "real" de MP (no el fallback genérico).
+    let comercio = payment.description || '';
+    if (!comercio && payment.additional_info && Array.isArray(payment.additional_info.items)) {
+        comercio = payment.additional_info.items.map(i => i.title).filter(Boolean).join(', ');
     }
 
-    const fecha = (payment.date_approved || payment.date_created || new Date().toISOString()).split('T')[0];
+    return { tipo, monto, divisa, comercio: comercio ? comercio.substring(0, 255) : null };
+}
 
-    return {
-        numero_cel: userPhone || '0000000000',
-        descripcion: descripcion.substring(0, 250),
-        monto,
-        fecha,
-        divisa,
-        tipos_transaccion: tipo,
-        metodo_pago: 'Mercado Pago',
-        categoria: isIncome ? 'Cobros MP' : 'Pagos MP'
-    };
+function mensajeAviso({ tipo, monto, divisa, comercio }) {
+    const tipoTxt = tipo === 'Ingreso' ? 'un ingreso' : 'un gasto';
+    const montoTxt = Number(monto).toLocaleString('es-AR');
+    const comercioTxt = comercio ? ` (${comercio})` : '';
+    return `💳 Detecté ${tipoTxt} de *$${montoTxt} ${divisa}* en Mercado Pago${comercioTxt}. ¿A qué se debió?`;
 }
 
 async function syncOne(userId, { force = false } = {}) {
@@ -54,7 +50,6 @@ async function syncOne(userId, { force = false } = {}) {
     const { account, token } = result;
 
     const user = await db.Usuarios.findByPk(userId);
-    const userPhone = user && user.telefono ? normalizarTelefono(user.telefono) : null;
 
     const since = force ? null : (account.last_sync_at ? new Date(account.last_sync_at).toISOString() : null);
 
@@ -63,34 +58,48 @@ async function syncOne(userId, { force = false } = {}) {
     let errors = 0;
 
     // ---- Payments ----
+    // Solo aprobados: no preguntamos por pagos pendientes/rechazados.
     try {
         const paymentsRes = await mp.searchPayments(token, { since, limit: 50 });
         const results = (paymentsRes && paymentsRes.results) || [];
 
         for (const payment of results) {
+            if (payment.status && payment.status !== 'approved') { skipped++; continue; }
+            if (payment.operation_type && !ALLOWED_OPS.has(payment.operation_type)) { skipped++; continue; }
+
             const resourceId = String(payment.id);
             const existing = await db.MercadoPagoEventos.findOne({ where: { mp_resource_id: resourceId } });
             if (existing) { skipped++; continue; }
 
-            const t = await db.sequelize.transaction();
             try {
-                const evento = await db.MercadoPagoEventos.create({
+                const info = derivePayment(payment, account.mp_user_id);
+
+                // Guardamos el movimiento como PENDIENTE de descripción. No creamos el gasto:
+                // eso ocurre cuando el usuario responde por WhatsApp (describir_movimiento_mp).
+                await db.MercadoPagoEventos.create({
                     user_id: userId,
                     mp_resource_id: resourceId,
                     mp_resource_type: 'payment',
-                    origen: 'polling',
+                    origen: 'webhook',
                     raw_payload: payment,
-                    procesado: false
-                }, { transaction: t });
-
-                const gastoData = mapPaymentToGasto(payment, account.mp_user_id, userPhone);
-                const gasto = await db.GastosPruebaN8N.create(gastoData, { transaction: t });
-
-                await evento.update({ procesado: true, gasto_id: gasto.id }, { transaction: t });
-                await t.commit();
+                    procesado: false,
+                    estado: 'pendiente_descripcion',
+                    monto: info.monto,
+                    divisa: info.divisa,
+                    tipo: info.tipo,
+                    comercio: info.comercio
+                });
                 created++;
+
+                // Avisamos al usuario y le pedimos la descripción.
+                if (user && user.telefono) {
+                    try {
+                        await sendText({ to: user.telefono, text: mensajeAviso(info) });
+                    } catch (sendErr) {
+                        console.error(`[mpSync] no se pudo avisar payment ${resourceId}:`, sendErr.response ? sendErr.response.data : sendErr.message);
+                    }
+                }
             } catch (err) {
-                await t.rollback();
                 errors++;
                 console.error(`[mpSync] error procesando payment ${resourceId}:`, err.message);
             }

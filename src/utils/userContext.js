@@ -3,6 +3,23 @@
 const db = require('../models');
 const { normalizarTelefono } = require('./phoneUtils');
 
+// Movimientos MP detectados que esperan que el usuario diga a qué se debieron.
+async function loadMpPendientes(usuarioId) {
+    const rows = await db.MercadoPagoEventos.findAll({
+        where: { user_id: usuarioId, estado: 'pendiente_descripcion' },
+        order: [['created_at', 'DESC']],
+        limit: 10,
+        attributes: ['id', 'monto', 'divisa', 'tipo', 'comercio']
+    });
+    return rows.map(r => ({
+        evento_id: r.id,
+        monto: r.monto,
+        divisa: r.divisa,
+        tipo: r.tipo,
+        comercio: r.comercio
+    }));
+}
+
 async function loadCatalogos(usuarioId) {
     const [cats, divs, pms, tps] = await Promise.all([
         db.Categorias.findAll({ where: { usuario_id: usuarioId }, attributes: ['descripcion'] }),
@@ -37,13 +54,17 @@ async function buildFromWaId(waId) {
         };
     }
 
-    const catalogos = await loadCatalogos(usuario.id);
+    const [catalogos, mp_pendientes] = await Promise.all([
+        loadCatalogos(usuario.id),
+        loadMpPendientes(usuario.id)
+    ]);
     return {
         userId: usuario.id,
         numero_cel: normalized,
         nombre: usuario.username,
         telefonoPrincipal: usuario.telefono,
         ...catalogos,
+        mp_pendientes,
         fechaActual: new Date().toISOString().split('T')[0]
     };
 }
@@ -52,13 +73,17 @@ async function buildFromWaId(waId) {
 async function buildFromUserId(userId) {
     const usuario = await db.Usuarios.findByPk(userId);
     if (!usuario) throw new Error('Usuario no encontrado');
-    const catalogos = await loadCatalogos(userId);
+    const [catalogos, mp_pendientes] = await Promise.all([
+        loadCatalogos(userId),
+        loadMpPendientes(userId)
+    ]);
     return {
         userId: usuario.id,
         numero_cel: normalizarTelefono(usuario.telefono),
         nombre: usuario.username,
         telefonoPrincipal: usuario.telefono,
         ...catalogos,
+        mp_pendientes,
         fechaActual: new Date().toISOString().split('T')[0]
     };
 }

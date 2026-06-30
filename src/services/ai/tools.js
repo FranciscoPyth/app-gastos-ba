@@ -409,6 +409,22 @@ const toolDefinitions = [
         }
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'describir_movimiento_mp',
+      description: 'Registra la descripción de un movimiento de Mercado Pago que estaba PENDIENTE (ver MOVIMIENTOS MP PENDIENTES en el contexto). Usalo SOLO cuando el usuario aclara a qué se debió uno de esos movimientos. El monto, la divisa y el tipo (Ingreso/Gasto) ya los toma del movimiento — vos solo pasás la descripción y la categoría inferida. NO uses registrar_gasto para esto.',
+      parameters: {
+        type: 'object',
+        required: ['evento_id', 'descripcion', 'categoria'],
+        properties: {
+          evento_id: { type: 'number', description: 'ID del evento MP pendiente (de la lista de pendientes del contexto).' },
+          descripcion: { type: 'string', description: 'A qué se debió el movimiento, según el usuario. Ej: "Asado con amigos".' },
+          categoria: { type: 'string', description: 'Categoría inferida de la lista del usuario a partir de la descripción. Ej: Comida.' }
+        }
+      }
+    }
   }
 ];
 
@@ -493,6 +509,38 @@ async function runTool(name, args, ctx) {
   // Tools in-process
   if (name === 'buscar_entidad') return buscarEntidad(args, ctx);
   if (name === 'consultar_balance_mes') return consultarBalanceMes(args, ctx);
+
+  if (name === 'describir_movimiento_mp') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const evento = await db.MercadoPagoEventos.findOne({
+      where: { id: args.evento_id, user_id: userId, estado: 'pendiente_descripcion' }
+    });
+    if (!evento) return { error: 'No encontré ese movimiento MP pendiente (puede que ya lo hayas registrado).' };
+
+    const raw = evento.raw_payload || {};
+    const fecha = (raw.date_approved || raw.date_created || new Date().toISOString()).split('T')[0];
+
+    const t = await db.sequelize.transaction();
+    try {
+      const gasto = await db.GastosPruebaN8N.create({
+        numero_cel,
+        descripcion: String(args.descripcion).substring(0, 250),
+        monto: evento.monto,
+        fecha,
+        divisa: evento.divisa || 'ARS',
+        tipos_transaccion: evento.tipo || 'Gasto',
+        metodo_pago: 'Mercado Pago',
+        categoria: args.categoria
+      }, { transaction: t });
+
+      await evento.update({ estado: 'procesado', procesado: true, gasto_id: gasto.id }, { transaction: t });
+      await t.commit();
+      return { ok: true, gasto };
+    } catch (err) {
+      await t.rollback();
+      return { error: err.message };
+    }
+  }
 
   // Tools que pegan a HTTP interno
   if (name === 'registrar_gasto') {
