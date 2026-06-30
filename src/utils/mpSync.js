@@ -10,7 +10,13 @@
 //   4. Actualiza last_sync_at.
 const db = require('../models');
 const mp = require('./mercadopago');
-const { sendText } = require('../services/whatsapp/sender');
+const { sendText, sendTemplate } = require('../services/whatsapp/sender');
+
+// Si está configurado un template aprobado, el aviso de MP se manda como template
+// (se entrega aunque el usuario esté inactivo +24h). Si no, cae al texto libre
+// (solo se entrega dentro de la ventana de 24h).
+const MP_TEMPLATE = process.env.WHATSAPP_MP_TEMPLATE;
+const MP_TEMPLATE_LANG = process.env.WHATSAPP_MP_TEMPLATE_LANG || 'es';
 
 // operation_type que SÍ representan gastos/ingresos reales y se preguntan.
 // Se excluyen 'investment' (capital al/del fondo, no es gasto; los rendimientos
@@ -42,6 +48,25 @@ function mensajeAviso({ tipo, monto, divisa, comercio }) {
     const montoTxt = Number(monto).toLocaleString('es-AR');
     const comercioTxt = comercio ? ` (${comercio})` : '';
     return `💳 Detecté ${tipoTxt} de *$${montoTxt} ${divisa}* en Mercado Pago${comercioTxt}. ¿A qué se debió?`;
+}
+
+// Texto que llena {{1}} del template MP: "un ingreso de $100 ARS (Comercio)".
+function resumenMovimiento({ tipo, monto, divisa, comercio }) {
+    const tipoTxt = tipo === 'Ingreso' ? 'un ingreso' : 'un gasto';
+    const montoTxt = Number(monto).toLocaleString('es-AR');
+    const comercioTxt = comercio ? ` (${comercio})` : '';
+    return `${tipoTxt} de $${montoTxt} ${divisa}${comercioTxt}`;
+}
+
+// Avisa el movimiento: template si está configurado (entrega siempre), si no texto libre.
+async function avisarMovimiento(telefono, info) {
+    if (MP_TEMPLATE) {
+        return sendTemplate({
+            to: telefono, templateName: MP_TEMPLATE, languageCode: MP_TEMPLATE_LANG,
+            bodyParams: [resumenMovimiento(info)]
+        });
+    }
+    return sendText({ to: telefono, text: mensajeAviso(info) });
 }
 
 async function syncOne(userId, { force = false } = {}) {
@@ -94,7 +119,7 @@ async function syncOne(userId, { force = false } = {}) {
                 // Avisamos al usuario y le pedimos la descripción.
                 if (user && user.telefono) {
                     try {
-                        await sendText({ to: user.telefono, text: mensajeAviso(info) });
+                        await avisarMovimiento(user.telefono, info);
                     } catch (sendErr) {
                         console.error(`[mpSync] no se pudo avisar payment ${resourceId}:`, sendErr.response ? sendErr.response.data : sendErr.message);
                     }
