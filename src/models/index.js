@@ -95,4 +95,7 @@ db.Suscripciones = require('./suscripciones')(sequelize, DataTypes);
 db.Suscripciones.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 db.Suscripciones.belongsTo(db.TarjetasCredito, { foreignKey: 'tarjeta_id', targetKey: 'id' });
 
+db.RecordatoriosReenganche = require('./recordatoriosReenganche')(sequelize, DataTypes);
+db.RecordatoriosReenganche.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;
