@@ -114,6 +114,9 @@ router.post('/webhook', async (req, res) => {
         const { type, data, user_id: mpUserId } = req.body || {};
         if (!type || !data || !data.id) return;
 
+        // Solo nos interesan notificaciones de pagos.
+        if (type !== 'payment') return;
+
         // Resolvemos qué usuario de nuestra app corresponde por el mpUserId
         const cuenta = await db.MercadoPagoCuentas.findOne({ where: { mp_user_id: String(mpUserId) } });
         if (!cuenta) {
@@ -121,21 +124,9 @@ router.post('/webhook', async (req, res) => {
             return;
         }
 
-        // Registramos el evento crudo (idempotencia por mp_resource_id)
-        const resourceId = String(data.id);
-        const existing = await db.MercadoPagoEventos.findOne({ where: { mp_resource_id: resourceId } });
-        if (existing) return;
-
-        await db.MercadoPagoEventos.create({
-            user_id: cuenta.user_id,
-            mp_resource_id: resourceId,
-            mp_resource_type: type,
-            origen: 'webhook',
-            raw_payload: req.body,
-            procesado: false
-        });
-
-        // Disparamos un sync (mismo flujo que polling) — el sync va a procesar este evento.
+        // Disparamos el mismo flujo que el polling. syncOne hace el procesamiento
+        // completo (dedup por mp_resource_id, guarda pendiente y avisa por WhatsApp).
+        // NO pre-creamos el evento acá: hacerlo haría que syncOne lo saltee como "ya existe".
         syncOne(cuenta.user_id).catch(err => console.error('[mp webhook] sync error:', err.message));
     } catch (error) {
         console.error('[mp webhook] error:', error.message);

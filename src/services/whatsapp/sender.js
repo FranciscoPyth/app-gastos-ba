@@ -1,10 +1,12 @@
 const axios = require('axios');
+const { toWhatsApp } = require('../../utils/whatsappFormat');
 
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || 'v22.0';
 
 async function sendText({ to, text, phoneNumberId }) {
   const token = process.env.WHATSAPP_TOKEN;
   const fromId = phoneNumberId || process.env.WHATSAPP_PHONE_ID;
+  text = toWhatsApp(text);
 
   if (!token || !fromId) {
     console.warn('[WhatsApp sender] Missing WHATSAPP_TOKEN or WHATSAPP_PHONE_ID. Skipping send.');

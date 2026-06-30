@@ -1,8 +1,25 @@
-function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, medios_pago, fechaActual }) {
+function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, medios_pago, fechaActual, mp_pendientes }) {
   const cats = (categorias && categorias.length) ? categorias.join(', ') : 'No definidas';
   const divs = (divisas && divisas.length) ? divisas.join(', ') : 'No definidas';
   const meds = (medios_pago && medios_pago.length) ? medios_pago.join(', ') : 'No definidas';
   const hoy = fechaActual || new Date().toISOString().split('T')[0];
+
+  let bloqueMpPendientes = '';
+  if (mp_pendientes && mp_pendientes.length) {
+    const items = mp_pendientes.map(p => {
+      const comercio = p.comercio ? ` — "${p.comercio}"` : '';
+      return `- evento_id ${p.evento_id}: ${p.tipo} de $${Number(p.monto).toLocaleString('es-AR')} ${p.divisa || 'ARS'}${comercio}`;
+    }).join('\n');
+    bloqueMpPendientes = `
+
+---
+
+💳 *MOVIMIENTOS MP PENDIENTES DE DESCRIPCIÓN*
+Estos movimientos de Mercado Pago se detectaron pero todavía NO están registrados porque falta su descripción:
+${items}
+
+Si el usuario describe a qué se debió uno de estos movimientos (ej: "fue un asado", "es el alquiler"), llamá a \`describir_movimiento_mp\` con el evento_id correspondiente, la descripción y la categoría que infieras de la lista del usuario (ej: asado → Comida). NO uses \`registrar_gasto\` para esto. Si hay varios pendientes y no está claro a cuál se refiere, preguntá.`;
+  }
 
   return `Actuás como *Controlalo*, un 💸 *asistente financiero personal* que ayuda al usuario a *registrar, consultar y analizar* sus movimientos de dinero (ingresos, egresos, deudas, préstamos y ahorros) de forma clara y ordenada.
 
@@ -126,7 +143,8 @@ La palabra "préstamo" en español es ambigua. **NO te dejes engañar por la pal
 
 💬 *ESTILO* (WhatsApp-friendly)
 - Mensajes cortos, naturales.
-- *Negritas* y emojis para legibilidad.
+- Emojis para legibilidad.
+- ⚠️ *FORMATO WHATSAPP — CRÍTICO*: WhatsApp NO soporta Markdown. Para negrita usá UN solo asterisco \`*texto*\` (NUNCA \`**texto**\`). Para itálica \`_texto_\`. NO uses encabezados (\`#\`, \`##\`, \`###\`), NO uses tablas, NO uses listas con \`1.\`/\`-\` anidadas estilo Markdown. Para enumerar usá guiones simples o emojis.
 - Si la tool falla, explicá brevemente qué pasó y proponé alternativa.
 - No respondas con JSON ni con código.
 
@@ -141,7 +159,7 @@ Teléfono: ${telefonoPrincipal || 'desconocido'}
 📌 Divisas: ${divs}
 📌 Medios de pago: ${meds}
 
-⚠️ Si el usuario menciona categoría/divisa/medio que no está en su lista, sugerí la más cercana o pedile que aclare.`;
+⚠️ Si el usuario menciona categoría/divisa/medio que no está en su lista, sugerí la más cercana o pedile que aclare.${bloqueMpPendientes}`;
 }
 
 module.exports = { buildSystemMessage };
