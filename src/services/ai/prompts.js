@@ -5,23 +5,40 @@ function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, me
   const hoy = fechaActual || new Date().toISOString().split('T')[0];
 
   let bloqueMpPendientes = '';
+  let bloqueMpBanner = '';
   if (mp_pendientes && mp_pendientes.length) {
     const items = mp_pendientes.map(p => {
       const comercio = p.comercio ? ` — "${p.comercio}"` : '';
       return `- evento_id ${p.evento_id}: ${p.tipo} de $${Number(p.monto).toLocaleString('es-AR')} ${p.divisa || 'ARS'}${comercio}`;
     }).join('\n');
+
+    bloqueMpBanner = `
+
+🚨 *ATENCIÓN — HAY ${mp_pendientes.length} MOVIMIENTO(S) DE MERCADO PAGO ESPERANDO DESCRIPCIÓN.* Si el próximo mensaje del usuario explica a qué se debió uno de ellos (aunque diga "sueldo", "ahorros", "me lo devolvieron", etc.), usá \`describir_movimiento_mp\` — NUNCA otra tool — y NO inventes el monto. Detalle y reglas al final del prompt.`;
+
     bloqueMpPendientes = `
 
 ---
 
-💳 *MOVIMIENTOS MP PENDIENTES DE DESCRIPCIÓN*
-Estos movimientos de Mercado Pago se detectaron pero todavía NO están registrados porque falta su descripción:
+🚨🚨 *MOVIMIENTOS MP PENDIENTES DE DESCRIPCIÓN — MÁXIMA PRIORIDAD* 🚨🚨
+Estos movimientos de Mercado Pago YA fueron detectados: su *monto, divisa y tipo (Ingreso/Gasto) ya están confirmados*. Solo falta que el usuario diga a qué se debieron:
 ${items}
 
-Si el usuario describe a qué se debió uno de estos movimientos (ej: "fue un asado", "es el alquiler"), llamá a \`describir_movimiento_mp\` con el evento_id correspondiente, la descripción y la categoría que infieras de la lista del usuario (ej: asado → Comida). NO uses \`registrar_gasto\` para esto. Si hay varios pendientes y no está claro a cuál se refiere, preguntá.`;
+*REGLA CRÍTICA (anula la tabla de decisión de arriba):*
+Cuando el usuario explica a qué se debió uno de estos movimientos —AUNQUE use palabras como "sueldo", "haberes", "ahorros", "me lo devolvieron", "fue un asado" o incluso "es un préstamo"— DEBÉS llamar a \`describir_movimiento_mp\` con el evento_id correspondiente, la descripción y la categoría inferida.
+- ❌ NUNCA uses \`registrar_gasto\`, \`crear_prestamo\`, \`crear_deuda\`, \`crear_objetivo\` ni \`aportar_objetivo\` para describir uno de estos movimientos: duplicarías el registro o inventarías datos.
+- ❌ NUNCA inventes ni cambies el monto, la divisa ni el tipo: vienen del movimiento pendiente. NO pongas un monto propio (ni $100 ni ningún placeholder).
+- ❌ NO uses datos de mensajes viejos del historial (personas, montos, motivos de otros movimientos). Este movimiento es nuevo e independiente.
+- ✅ En tu confirmación repetí el monto EXACTO del movimiento pendiente (el de la lista de arriba).
+
+Ejemplos:
+- Pendiente: Ingreso de $3.593.742,74 ARS. Usuario: "es mi sueldo/haberes de junio de Mercado Libre" → \`describir_movimiento_mp\`(evento_id, descripcion="Sueldo junio Mercado Libre", categoria="Sueldo"). Confirmás $3.593.742,74 ARS, NO otro monto.
+- Pendiente: Ingreso de $2.000 USD. Usuario: "es por ahorros personales" → \`describir_movimiento_mp\`(evento_id, descripcion="Ahorros personales", categoria=la más cercana). NO crees préstamos ni deudas, NO menciones movimientos viejos.
+
+Si hay varios pendientes y no está claro a cuál se refiere, PREGUNTÁ cuál. Solo si el usuario claramente habla de OTRA cosa (un gasto nuevo no relacionado) usá la tool que corresponda.`;
   }
 
-  return `Actuás como *Controlalo*, un 💸 *asistente financiero personal* que ayuda al usuario a *registrar, consultar y analizar* sus movimientos de dinero (ingresos, egresos, deudas, préstamos y ahorros) de forma clara y ordenada.
+  return `Actuás como *Controlalo*, un 💸 *asistente financiero personal* que ayuda al usuario a *registrar, consultar y analizar* sus movimientos de dinero (ingresos, egresos, deudas, préstamos y ahorros) de forma clara y ordenada.${bloqueMpBanner}
 
 ---
 
