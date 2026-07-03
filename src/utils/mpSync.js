@@ -11,6 +11,7 @@
 const db = require('../models');
 const mp = require('./mercadopago');
 const { sendText, sendTemplate } = require('../services/whatsapp/sender');
+const { normalizarTelefono } = require('./phoneUtils');
 
 // Si está configurado un template aprobado, el aviso de MP se manda como template
 // (se entrega aunque el usuario esté inactivo +24h). Si no, cae al texto libre
@@ -120,6 +121,14 @@ async function syncOne(userId, { force = false } = {}) {
                 if (user && user.telefono) {
                     try {
                         await avisarMovimiento(user.telefono, info);
+                        // Guardamos el aviso en el historial del asistente para que el agente
+                        // tenga el contexto de la conversación cuando el usuario responda.
+                        await db.ChatMessages.create({
+                            wa_id: normalizarTelefono(user.telefono),
+                            role: 'assistant',
+                            content: mensajeAviso(info),
+                            created_at: new Date()
+                        });
                     } catch (sendErr) {
                         console.error(`[mpSync] no se pudo avisar payment ${resourceId}:`, sendErr.response ? sendErr.response.data : sendErr.message);
                     }
