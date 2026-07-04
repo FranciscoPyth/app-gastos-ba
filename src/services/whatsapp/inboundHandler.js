@@ -51,6 +51,15 @@ async function handleEvent(body) {
 
           const userContext = await buildFromWaId(waId);
 
+          if (!userContext.userId) {
+            await sendText({
+              to: waId,
+              text: '¡Hola! 👋 Soy el asistente de *Controlalo*, tu app para controlar tus gastos.\n\nEste número todavía no está asociado a una cuenta. Creá la tuya gratis en 👉 https://controlalo.com.ar/ y registrá tu WhatsApp para empezar a cargar y consultar tus gastos directamente desde acá. 💸',
+              phoneNumberId
+            });
+            continue;
+          }
+
           let reply;
           try {
             reply = await chat({ waId, userText, userContext });
