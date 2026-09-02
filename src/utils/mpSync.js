@@ -10,7 +10,7 @@
 //   4. Actualiza last_sync_at.
 const db = require('../models');
 const mp = require('./mercadopago');
-const { sendText, sendTemplate } = require('../services/whatsapp/sender');
+const { notifyUser } = require('../services/notify');
 const { normalizarTelefono } = require('./phoneUtils');
 
 // Si está configurado un template aprobado, el aviso de MP se manda como template
@@ -59,15 +59,15 @@ function resumenMovimiento({ tipo, monto, divisa, comercio }) {
     return `${tipoTxt} de $${montoTxt} ${divisa}${comercioTxt}`;
 }
 
-// Avisa el movimiento: template si está configurado (entrega siempre), si no texto libre.
-async function avisarMovimiento(telefono, info) {
-    if (MP_TEMPLATE) {
-        return sendTemplate({
-            to: telefono, templateName: MP_TEMPLATE, languageCode: MP_TEMPLATE_LANG,
-            bodyParams: [resumenMovimiento(info)]
-        });
-    }
-    return sendText({ to: telefono, text: mensajeAviso(info) });
+// Avisa el movimiento por el canal del usuario: Telegram si está vinculado (gratis),
+// si no WhatsApp (template si está configurado para entregar fuera de la ventana de 24h).
+async function avisarMovimiento(user, info) {
+    return notifyUser(user, {
+        text: mensajeAviso(info),
+        whatsappTemplate: MP_TEMPLATE || undefined,
+        whatsappTemplateLang: MP_TEMPLATE_LANG,
+        whatsappParams: [resumenMovimiento(info)]
+    });
 }
 
 async function syncOne(userId, { force = false } = {}) {
@@ -118,13 +118,15 @@ async function syncOne(userId, { force = false } = {}) {
                 created++;
 
                 // Avisamos al usuario y le pedimos la descripción.
-                if (user && user.telefono) {
+                if (user && (user.telegram_chat_id || user.telefono)) {
                     try {
-                        await avisarMovimiento(user.telefono, info);
+                        await avisarMovimiento(user, info);
                         // Guardamos el aviso en el historial del asistente para que el agente
                         // tenga el contexto de la conversación cuando el usuario responda.
+                        // La clave de historial coincide con la que usa el inbound (teléfono
+                        // normalizado, o tg:<chatId> si el usuario no tiene teléfono).
                         await db.ChatMessages.create({
-                            wa_id: normalizarTelefono(user.telefono),
+                            wa_id: user.telefono ? normalizarTelefono(user.telefono) : `tg:${user.telegram_chat_id}`,
                             role: 'assistant',
                             content: mensajeAviso(info),
                             created_at: new Date()

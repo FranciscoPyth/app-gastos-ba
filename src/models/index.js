@@ -98,4 +98,7 @@ db.Suscripciones.belongsTo(db.TarjetasCredito, { foreignKey: 'tarjeta_id', targe
 db.RecordatoriosReenganche = require('./recordatoriosReenganche')(sequelize, DataTypes);
 db.RecordatoriosReenganche.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
+db.TelegramLinkTokens = require('./telegramLinkTokens')(sequelize, DataTypes);
+db.TelegramLinkTokens.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;
