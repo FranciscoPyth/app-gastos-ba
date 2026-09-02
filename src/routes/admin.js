@@ -6,6 +6,7 @@ const db = require('../models');
 const { authenticateJWT } = require('../security/auth');
 const requireAdmin = require('../security/requireAdmin');
 const { sendTemplate } = require('../services/whatsapp/sender');
+const tg = require('../services/telegram/sender');
 const { normalizarTelefono, obtenerVariantesTelefono } = require('../utils/phoneUtils');
 
 const QueryTypes = db.Sequelize.QueryTypes;
@@ -171,7 +172,7 @@ router.get('/metrics', authenticateJWT, requireAdmin, async (req, res) => {
 // días inactivo, alta proxy, estado de recordatorio). Reusado por la lista y el masivo.
 async function buildUsuariosResumen() {
   const [usuarios, chatAgg, firstChat, firstAct, rem] = await Promise.all([
-    db.Usuarios.findAll({ attributes: ['id', 'username', 'email', 'telefono', 'has_completed_onboarding', 'is_admin'] }),
+    db.Usuarios.findAll({ attributes: ['id', 'username', 'email', 'telefono', 'telegram_chat_id', 'has_completed_onboarding', 'is_admin'] }),
     q(`SELECT wa_id, MAX(created_at) ultima, COUNT(*) total FROM ChatMessages WHERE role='user' GROUP BY wa_id`),
     q(`SELECT wa_id, MIN(created_at) first_chat FROM ChatMessages GROUP BY wa_id`),
     q(`SELECT user_id, MIN(d) first_activity FROM (
@@ -202,6 +203,7 @@ async function buildUsuariosResumen() {
       new Date(ultima).getTime() > new Date(ultimo_recordatorio).getTime());
     return {
       id: u.id, username: u.username, email: u.email, telefono: u.telefono,
+      telegram_vinculado: !!u.telegram_chat_id,
       has_completed_onboarding: u.has_completed_onboarding, is_admin: u.is_admin,
       primera_actividad: alta, ultima_interaccion: ultima, dias_inactivo,
       total_mensajes: total, ultimo_recordatorio, reenganchado
@@ -211,8 +213,30 @@ async function buildUsuariosResumen() {
   return out;
 }
 
-// Envía el template de re-enganche a un usuario y registra el resultado.
+// Envía el re-enganche por el canal del usuario (Telegram si está vinculado, si no
+// el template de WhatsApp) y registra el resultado.
 async function enviarRecordatorio(u) {
+  // Telegram: texto libre (gratis, sin ventana de 24h ni template).
+  if (u.telegram_chat_id) {
+    const mensaje = `¡Hola ${u.username || 'amig@'}! 👋 Hace un tiempo que no cargás tus gastos en Controlalo. ` +
+      `Estoy acá para ayudarte a retomar el control de tu plata. Contame en qué gastaste hoy y lo registro al toque. 💸`;
+    try {
+      await tg.sendText({ chatId: u.telegram_chat_id, text: mensaje });
+      await db.RecordatoriosReenganche.create({
+        user_id: u.id, enviado_at: new Date(), template: 'telegram_reenganche',
+        estado: 'enviado', wa_message_id: null
+      });
+      return { ok: true, estado: 'enviado', user_id: u.id, canal: 'telegram' };
+    } catch (err) {
+      const msg = err.response && err.response.data ? JSON.stringify(err.response.data) : err.message;
+      await db.RecordatoriosReenganche.create({
+        user_id: u.id, enviado_at: new Date(), template: 'telegram_reenganche',
+        estado: 'error', error: String(msg).slice(0, 1000)
+      });
+      return { ok: false, estado: 'error', user_id: u.id, error: msg };
+    }
+  }
+
   const to = normalizarTelefono(u.telefono);
   try {
     const data = await sendTemplate({
@@ -296,7 +320,7 @@ router.post('/usuarios/:id/recordatorio', authenticateJWT, requireAdmin, async (
     const id = parseInt(req.params.id, 10);
     const u = await db.Usuarios.findByPk(id);
     if (!u) return res.status(404).json({ message: 'Usuario no encontrado' });
-    if (!u.telefono) return res.status(400).json({ message: 'El usuario no tiene teléfono' });
+    if (!u.telefono && !u.telegram_chat_id) return res.status(400).json({ message: 'El usuario no tiene teléfono ni Telegram' });
     const r = await enviarRecordatorio(u);
     if (r.estado === 'error') return res.status(502).json(r);
     res.json(r);
@@ -312,7 +336,7 @@ router.post('/usuarios/recordatorio-masivo', authenticateJWT, requireAdmin, asyn
     const dias = Math.max(0, parseInt(req.body && req.body.dias, 10) || 0);
     const resumen = await buildUsuariosResumen();
     const targetsResumen = resumen.filter(u =>
-      u.telefono && !u.is_admin && (u.dias_inactivo === null || u.dias_inactivo >= dias));
+      (u.telefono || u.telegram_vinculado) && !u.is_admin && (u.dias_inactivo === null || u.dias_inactivo >= dias));
 
     let enviados = 0, errores = 0;
     const detalle = [];

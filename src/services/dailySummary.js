@@ -1,6 +1,6 @@
 const { Op } = require('sequelize');
 const { Usuarios, GastosPruebaN8N, TarjetasCredito } = require('../models');
-const { sendText } = require('./whatsapp/sender');
+const { notifyUser } = require('./notify');
 const { enrichTarjeta } = require('../utils/tarjetas');
 
 function getArgentinaDateParts() {
@@ -59,12 +59,18 @@ async function runDailySummary() {
   const { isoDate } = getArgentinaDateParts();
 
   const usuarios = await Usuarios.findAll({
-    where: { telefono: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } }
+    where: {
+      [Op.or]: [
+        { telefono: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } },
+        { telegram_chat_id: { [Op.ne]: null } }
+      ]
+    }
   });
 
   for (const u of usuarios) {
     try {
       const telefono = u.telefono;
+      // Los movimientos se matchean por número; sin teléfono no hay datos que resumir.
       if (!telefono) continue;
 
       // Variantes para soportar formatos viejos (sin 549)
@@ -93,8 +99,8 @@ async function runDailySummary() {
       }
 
       const mensaje = formatear({ nombre: u.username, gastosHoy: gastos, tarjetasProximas });
-      await sendText({ to: telefono, text: mensaje });
-      console.log(`[dailySummary] Resumen enviado a ${u.username} (${telefono}) - ${gastos.length} mov.`);
+      const res = await notifyUser(u, { text: mensaje });
+      console.log(`[dailySummary] Resumen enviado a ${u.username} (${res?.canal || 'sin canal'}) - ${gastos.length} mov.`);
     } catch (err) {
       console.error(`[dailySummary] Error con usuario ${u.id}:`, err.response?.data || err.message);
     }

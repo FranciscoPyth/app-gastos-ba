@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const { Usuarios, CuentasConciliables } = require('../models');
 const conciliacionSvc = require('./conciliacion');
-const { sendText } = require('./whatsapp/sender');
+const { notifyUser } = require('./notify');
 
 function fechaArgentina() {
   return new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -34,7 +34,12 @@ async function runConciliacionReminder() {
   const periodo = fecha.toISOString().split('T')[0];
 
   const usuarios = await Usuarios.findAll({
-    where: { telefono: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } }
+    where: {
+      [Op.or]: [
+        { telefono: { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] } },
+        { telegram_chat_id: { [Op.ne]: null } }
+      ]
+    }
   });
 
   const horaActual = fecha.getUTCHours(); // hora ART (fecha ya viene corrida -3h)
@@ -52,8 +57,8 @@ async function runConciliacionReminder() {
       });
       if (cuentas.length === 0) continue;
 
-      await sendText({ to: u.telefono, text: formatearMensaje(u.username, cuentas) });
-      console.log(`[conciliacionReminder] enviado a ${u.username} (${cuentas.length} cuentas)`);
+      const res = await notifyUser(u, { text: formatearMensaje(u.username, cuentas) });
+      console.log(`[conciliacionReminder] enviado a ${u.username} (${res?.canal || 'sin canal'}, ${cuentas.length} cuentas)`);
     } catch (err) {
       console.error(`[conciliacionReminder] error usuario ${u.id}:`, err.response?.data || err.message);
     }

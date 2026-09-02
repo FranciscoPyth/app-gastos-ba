@@ -24,6 +24,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       unique: false,
     },
+    telegram_chat_id: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+      unique: true,
+    },
     foto_perfil: {
       type: DataTypes.TEXT('long'),
       allowNull: true,

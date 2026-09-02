@@ -73,6 +73,7 @@ app.use('/api/feed', require('./src/routes/feed'));
 app.use('/api/tarjetas', require('./src/routes/tarjetas'));
 app.use('/api/suscripciones', require('./src/routes/suscripciones'));
 app.use('/api/whatsapp', require('./src/routes/whatsappWebhook'));
+app.use('/api/telegram', require('./src/routes/telegramWebhook'));
 app.use('/api/admin', require('./src/routes/admin'));
 
 // Manejo de errores
