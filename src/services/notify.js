@@ -11,6 +11,11 @@ async function notifyUser(user, { text, whatsappTemplate, whatsappTemplateLang, 
     await tg.sendText({ chatId: user.telegram_chat_id, text });
     return { canal: 'telegram' };
   }
+  // Corte de avisos automáticos por WhatsApp (migración a Telegram). No afecta al
+  // asistente inbound ni al aviso de migración, que se mandan por otra vía.
+  if (process.env.DISABLE_WHATSAPP_NOTIFICATIONS === 'true') {
+    return { canal: 'omitido_whatsapp_desactivado' };
+  }
   if (!user || !user.telefono) return null;
   if (whatsappTemplate) {
     await wa.sendTemplate({
