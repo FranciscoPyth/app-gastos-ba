@@ -29,6 +29,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       unique: true,
     },
+    telegram_nudge_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     foto_perfil: {
       type: DataTypes.TEXT('long'),
       allowNull: true,

@@ -4,6 +4,8 @@ const { transcribeAudio } = require('../ai/transcribe');
 const { analyzeInvoiceImage } = require('../ai/visionInvoice');
 const { chat } = require('../ai/agent');
 const { buildFromWaId } = require('../../utils/userContext');
+const db = require('../../models');
+const { maybeSendWhatsappMigrationNudge } = require('../telegram/migrationNudge');
 
 async function extractText(message) {
   if (message.type === 'text') {
@@ -71,6 +73,10 @@ async function handleEvent(body) {
           if (reply) {
             await sendText({ to: waId, text: reply, phoneNumberId });
           }
+
+          // Invita a migrar a Telegram (1/día) a usuarios que aún no vincularon.
+          const usuario = await db.Usuarios.findByPk(userContext.userId);
+          await maybeSendWhatsappMigrationNudge(usuario);
         }
       }
     }
