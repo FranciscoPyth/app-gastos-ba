@@ -9,19 +9,33 @@ const sequelize = new Sequelize(process.env.DB_DATABASE, process.env.DB_USERNAME
   port: process.env.DB_PORT || 3306, // Puerto estándar de MySQL
   dialect: process.env.DB_DIALECT,
   logging: console.log, // Muestra logs detallados
+  // Reintenta queries/conexiones ante microcortes de MySQL en vez de fallar.
+  retry: {
+    max: 5,
+    match: [
+      /ECONNREFUSED/, /ETIMEDOUT/, /ECONNRESET/, /EHOSTUNREACH/,
+      /PROTOCOL_CONNECTION_LOST/,
+      /SequelizeConnectionError/, /SequelizeConnectionRefusedError/,
+      /SequelizeHostNotReachableError/, /SequelizeConnectionTimedOutError/,
+    ],
+  },
 });
 
 
-// Probar la conexión
-(async () => {
+// Conexión inicial con reintentos y backoff. Un microcorte de MySQL al arranque
+// NO debe tirar el proceso (antes hacía process.exit(1) y pm2 lo reiniciaba en loop).
+async function connectWithRetry(attempt = 1) {
+  const MAX_DELAY = 30000;
   try {
     await sequelize.authenticate();
     console.log('Conexión a la base de datos establecida con éxito.');
   } catch (error) {
-    console.error('No se pudo conectar a la base de datos:', error);
-    process.exit(1);
+    const delay = Math.min(2000 * attempt, MAX_DELAY);
+    console.error(`No se pudo conectar a la base de datos (intento ${attempt}); reintento en ${delay}ms:`, error.message);
+    setTimeout(() => connectWithRetry(attempt + 1), delay);
   }
-})();
+}
+connectWithRetry();
 
 const db = {};
 
