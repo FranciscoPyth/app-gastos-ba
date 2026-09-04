@@ -115,4 +115,13 @@ db.RecordatoriosReenganche.belongsTo(db.Usuarios, { foreignKey: 'user_id', targe
 db.TelegramLinkTokens = require('./telegramLinkTokens')(sequelize, DataTypes);
 db.TelegramLinkTokens.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
+db.PatrimonioPosiciones = require('./patrimonioPosiciones')(sequelize, DataTypes);
+db.PatrimonioPosiciones.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.PatrimonioConfig = require('./patrimonioConfig')(sequelize, DataTypes);
+db.PatrimonioConfig.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.PatrimonioSnapshots = require('./patrimonioSnapshots')(sequelize, DataTypes);
+db.PatrimonioSnapshots.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;
