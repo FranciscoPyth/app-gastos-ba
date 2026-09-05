@@ -127,4 +127,7 @@ db.PatrimonioSnapshots.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey
 db.PresupuestoLineas = require('./presupuestoLineas')(sequelize, DataTypes);
 db.PresupuestoLineas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
+db.ProyeccionConfig = require('./proyeccionConfig')(sequelize, DataTypes);
+db.ProyeccionConfig.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;
