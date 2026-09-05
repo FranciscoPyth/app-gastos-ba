@@ -22,6 +22,7 @@ function out(c) {
     horizonte_meses: c.horizonte_meses,
     rendimiento_anual_pct: Number(c.rendimiento_anual_pct),
     meta_usd: c.meta_usd === null || c.meta_usd === undefined ? null : Number(c.meta_usd),
+    punto_partida_usd: c.punto_partida_usd === null || c.punto_partida_usd === undefined ? null : Number(c.punto_partida_usd),
   };
 }
 
@@ -40,11 +41,12 @@ router.get('/', async (req, res) => {
 router.put('/', async (req, res) => {
   try {
     const c = await getCfg(res.locals.user.id);
-    const { aporte_mensual_usd, horizonte_meses, rendimiento_anual_pct, meta_usd } = req.body || {};
+    const { aporte_mensual_usd, horizonte_meses, rendimiento_anual_pct, meta_usd, punto_partida_usd } = req.body || {};
     if (aporte_mensual_usd !== undefined) c.aporte_mensual_usd = Number(aporte_mensual_usd) || 0;
     if (horizonte_meses !== undefined) c.horizonte_meses = Math.max(1, Math.min(600, parseInt(horizonte_meses, 10) || 12));
     if (rendimiento_anual_pct !== undefined) c.rendimiento_anual_pct = Number(rendimiento_anual_pct) || 0;
     if (meta_usd !== undefined) c.meta_usd = (meta_usd === null || meta_usd === '') ? null : (Number(meta_usd) || 0);
+    if (punto_partida_usd !== undefined) c.punto_partida_usd = (punto_partida_usd === null || punto_partida_usd === '') ? null : (Number(punto_partida_usd) || 0);
     c.updated_at = new Date();
     await c.save();
     res.json(out(c));
