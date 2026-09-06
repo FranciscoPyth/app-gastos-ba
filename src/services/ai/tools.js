@@ -5,6 +5,7 @@ const axios = require('axios');
 const { Op } = require('sequelize');
 const db = require('../../models');
 const { enrichTarjeta, getResumenPeriodo } = require('../../utils/tarjetas');
+const gcal = require('../googleCalendar');
 
 const INTERNAL_BASE = process.env.INTERNAL_API_BASE || `http://localhost:${process.env.PORT || 4000}`;
 
@@ -486,6 +487,20 @@ const agendaToolDefinitions = [
       description: 'Elimina un recordatorio/tarea. Por id, o por texto (coincidencia entre pendientes).',
       parameters: { type: 'object', properties: { id: { type: 'number' }, texto: { type: 'string' } } }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'consultar_calendario',
+      description: 'Devuelve los eventos del Google Calendar del usuario en un rango de fechas. Usalo (junto con listar_agenda) cuando el usuario pregunta por su día/semana/agenda. Si el usuario no conectó su calendario, devuelve { no_conectado: true }.',
+      parameters: {
+        type: 'object', required: ['desde', 'hasta'],
+        properties: {
+          desde: { type: 'string', description: 'YYYY-MM-DD inicio del rango.' },
+          hasta: { type: 'string', description: 'YYYY-MM-DD fin del rango (mismo día que desde para una fecha puntual).' }
+        }
+      }
+    }
   }
 ];
 
@@ -948,6 +963,12 @@ async function runTool(name, args, ctx) {
     if (!item) return { error: 'No encontré ese recordatorio.' };
     if (name === 'completar_item') { await item.update({ estado: 'hecho' }); return { ok: true, completado: { id: item.id, texto: item.texto } }; }
     await item.destroy(); return { ok: true, borrado: { id: item.id, texto: item.texto } };
+  }
+
+  if (name === 'consultar_calendario') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    try { return await gcal.listEvents(userId, { desde: args.desde, hasta: args.hasta }); }
+    catch (e) { return { error: 'No pude leer el calendario', detalle: e.response?.data?.error?.message || e.message }; }
   }
 
   throw new Error(`Tool desconocida: ${name}`);
