@@ -428,6 +428,73 @@ const toolDefinitions = [
   }
 ];
 
+// Tools del secretario/agenda — solo se ofrecen a usuarios con secretario_habilitado.
+const agendaToolDefinitions = [
+  {
+    type: 'function',
+    function: {
+      name: 'crear_recordatorio',
+      description: 'Guarda uno o varios recordatorios/tareas de la agenda personal del usuario (NO es un gasto/finanza). Usalo cuando el usuario manda cosas para acordarse, tareas, eventos, pendientes. Podés crear varios de un mismo mensaje (ej. una lista).',
+      parameters: {
+        type: 'object', required: ['items'],
+        properties: {
+          items: {
+            type: 'array', description: 'Lista de recordatorios a crear.',
+            items: {
+              type: 'object', required: ['texto'],
+              properties: {
+                texto: { type: 'string', description: 'Qué hay que recordar/hacer, breve y claro.' },
+                categoria: { type: 'string', description: 'Categoría del set del usuario (Facultad, Trabajo, etc.). Si no aplica una, omitir.' },
+                fecha: { type: 'string', description: 'YYYY-MM-DD si tiene día. Resolvé relativos (mañana, el miércoles, este finde) según la fecha de hoy del contexto.' },
+                hora: { type: 'string', description: 'HH:MM (24h) si tiene hora puntual.' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'listar_agenda',
+      description: 'Lista recordatorios/tareas del usuario. Usalo para "¿qué tengo hoy/mañana/el miércoles/esta semana?" o por categoría. Por defecto solo pendientes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          dia: { type: 'string', description: 'YYYY-MM-DD para un día puntual.' },
+          desde: { type: 'string', description: 'YYYY-MM-DD inicio de rango.' },
+          hasta: { type: 'string', description: 'YYYY-MM-DD fin de rango.' },
+          categoria: { type: 'string', description: 'Filtrar por categoría.' },
+          incluir_hechos: { type: 'boolean', description: 'true para incluir los ya hechos.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'completar_item',
+      description: 'Marca un recordatorio/tarea como hecho. Si no tenés el id, pasá el texto y se busca por coincidencia entre los pendientes.',
+      parameters: { type: 'object', properties: { id: { type: 'number' }, texto: { type: 'string', description: 'Texto o parte del recordatorio.' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'borrar_item',
+      description: 'Elimina un recordatorio/tarea. Por id, o por texto (coincidencia entre pendientes).',
+      parameters: { type: 'object', properties: { id: { type: 'number' }, texto: { type: 'string' } } }
+    }
+  }
+];
+
+// Devuelve las tools según el contexto: base financieras + agenda si el usuario tiene el secretario habilitado.
+function getToolDefinitions(context) {
+  if (context && context.secretario_habilitado) return [...toolDefinitions, ...agendaToolDefinitions];
+  return toolDefinitions;
+}
+
 // ---------- helpers in-process ----------
 
 async function buscarEntidad({ tipo, nombre }, { userId }) {
@@ -821,7 +888,69 @@ async function runTool(name, args, ctx) {
     return { ok: true, suscripcion: s };
   }
 
+  // ---------- SECRETARIO / AGENDA ----------
+  if (name === 'crear_recordatorio') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const items = Array.isArray(args.items) ? args.items : [];
+    if (!items.length) return { error: 'No hay ítems para crear' };
+    const cats = await db.AgendaCategorias.findAll({ where: { user_id: userId, activo: true } });
+    const snap = (c) => {
+      if (!c) return null;
+      const cl = String(c).toLowerCase();
+      const found = cats.find(x => x.nombre.toLowerCase() === cl)
+        || cats.find(x => x.nombre.toLowerCase().includes(cl) || cl.includes(x.nombre.toLowerCase()));
+      return found ? found.nombre : null;
+    };
+    const creados = [];
+    for (const it of items) {
+      if (!it || !it.texto) continue;
+      const row = await db.AgendaItems.create({
+        user_id: userId,
+        texto: String(it.texto).slice(0, 500),
+        categoria: snap(it.categoria),
+        fecha: it.fecha || null,
+        hora: it.hora || null,
+        estado: 'pendiente',
+        recordado: false,
+        created_at: new Date()
+      });
+      creados.push({ id: row.id, texto: row.texto, categoria: row.categoria, fecha: row.fecha, hora: row.hora });
+    }
+    return { ok: true, creados };
+  }
+
+  if (name === 'listar_agenda') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const where = { user_id: userId };
+    if (!args.incluir_hechos) where.estado = 'pendiente';
+    if (args.dia) where.fecha = args.dia;
+    else if (args.desde || args.hasta) {
+      where.fecha = {};
+      if (args.desde) where.fecha[Op.gte] = args.desde;
+      if (args.hasta) where.fecha[Op.lte] = args.hasta;
+    }
+    if (args.categoria) where.categoria = { [Op.like]: `%${String(args.categoria)}%` };
+    const rows = await db.AgendaItems.findAll({ where, order: [['fecha', 'ASC'], ['hora', 'ASC'], ['id', 'ASC']], limit: 100 });
+    return rows.map(r => ({ id: r.id, texto: r.texto, categoria: r.categoria, fecha: r.fecha, hora: r.hora, estado: r.estado }));
+  }
+
+  if (name === 'completar_item' || name === 'borrar_item') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    let item = null;
+    if (args.id) item = await db.AgendaItems.findOne({ where: { id: args.id, user_id: userId } });
+    else if (args.texto) {
+      const tokens = String(args.texto).toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+      item = await db.AgendaItems.findOne({
+        where: { user_id: userId, estado: 'pendiente', ...(tokens.length ? { [Op.and]: tokens.map(t => ({ texto: { [Op.like]: `%${t}%` } })) } : {}) },
+        order: [['fecha', 'ASC'], ['id', 'ASC']]
+      });
+    }
+    if (!item) return { error: 'No encontré ese recordatorio.' };
+    if (name === 'completar_item') { await item.update({ estado: 'hecho' }); return { ok: true, completado: { id: item.id, texto: item.texto } }; }
+    await item.destroy(); return { ok: true, borrado: { id: item.id, texto: item.texto } };
+  }
+
   throw new Error(`Tool desconocida: ${name}`);
 }
 
-module.exports = { toolDefinitions, runTool };
+module.exports = { toolDefinitions, getToolDefinitions, runTool };

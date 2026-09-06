@@ -20,6 +20,19 @@ async function loadMpPendientes(usuarioId) {
     }));
 }
 
+const DEFAULT_AGENDA_CATEGORIAS = ['Facultad', 'Trabajo', 'Juntadas/Amigos', 'Personales', 'Familia', 'Partida'];
+
+// Contexto del secretario: flag + categorías (siembra defaults la primera vez si está habilitado).
+async function loadSecretario(usuario) {
+    if (!usuario.secretario_habilitado) return { secretario_habilitado: false, agenda_categorias: [] };
+    let cats = await db.AgendaCategorias.findAll({ where: { user_id: usuario.id, activo: true }, order: [['orden', 'ASC'], ['id', 'ASC']] });
+    if (!cats.length) {
+        await db.AgendaCategorias.bulkCreate(DEFAULT_AGENDA_CATEGORIAS.map((nombre, i) => ({ user_id: usuario.id, nombre, orden: i, activo: true })));
+        cats = await db.AgendaCategorias.findAll({ where: { user_id: usuario.id, activo: true }, order: [['orden', 'ASC'], ['id', 'ASC']] });
+    }
+    return { secretario_habilitado: true, agenda_categorias: cats.map(c => c.nombre) };
+}
+
 async function loadCatalogos(usuarioId) {
     const [cats, divs, pms, tps] = await Promise.all([
         db.Categorias.findAll({ where: { usuario_id: usuarioId }, attributes: ['descripcion'] }),
@@ -54,9 +67,10 @@ async function buildFromWaId(waId) {
         };
     }
 
-    const [catalogos, mp_pendientes] = await Promise.all([
+    const [catalogos, mp_pendientes, secretario] = await Promise.all([
         loadCatalogos(usuario.id),
-        loadMpPendientes(usuario.id)
+        loadMpPendientes(usuario.id),
+        loadSecretario(usuario)
     ]);
     return {
         userId: usuario.id,
@@ -64,6 +78,7 @@ async function buildFromWaId(waId) {
         nombre: usuario.username,
         telefonoPrincipal: usuario.telefono,
         ...catalogos,
+        ...secretario,
         mp_pendientes,
         fechaActual: new Date().toISOString().split('T')[0]
     };
@@ -73,9 +88,10 @@ async function buildFromWaId(waId) {
 async function buildFromUserId(userId) {
     const usuario = await db.Usuarios.findByPk(userId);
     if (!usuario) throw new Error('Usuario no encontrado');
-    const [catalogos, mp_pendientes] = await Promise.all([
+    const [catalogos, mp_pendientes, secretario] = await Promise.all([
         loadCatalogos(userId),
-        loadMpPendientes(userId)
+        loadMpPendientes(userId),
+        loadSecretario(usuario)
     ]);
     return {
         userId: usuario.id,
@@ -83,6 +99,7 @@ async function buildFromUserId(userId) {
         nombre: usuario.username,
         telefonoPrincipal: usuario.telefono,
         ...catalogos,
+        ...secretario,
         mp_pendientes,
         fechaActual: new Date().toISOString().split('T')[0]
     };

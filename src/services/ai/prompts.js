@@ -1,8 +1,27 @@
-function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, medios_pago, fechaActual, mp_pendientes }) {
+function buildSystemMessage({ nombre, telefonoPrincipal, categorias, divisas, medios_pago, fechaActual, mp_pendientes, secretario_habilitado, agenda_categorias }) {
   const cats = (categorias && categorias.length) ? categorias.join(', ') : 'No definidas';
   const divs = (divisas && divisas.length) ? divisas.join(', ') : 'No definidas';
   const meds = (medios_pago && medios_pago.length) ? medios_pago.join(', ') : 'No definidas';
   const hoy = fechaActual || new Date().toISOString().split('T')[0];
+  const diasSem = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const diaSemana = diasSem[new Date(hoy + 'T12:00:00').getDay()] || '';
+
+  let bloqueSecretario = '';
+  if (secretario_habilitado) {
+    const agCats = (agenda_categorias && agenda_categorias.length) ? agenda_categorias.join(', ') : 'Facultad, Trabajo, Personales';
+    bloqueSecretario = `
+
+---
+
+🗓️ *SECRETARIO / AGENDA PERSONAL* (además de lo financiero)
+Hoy es *${diaSemana} ${hoy}*. Usalo para resolver fechas relativas ("mañana", "el miércoles", "este finde", "en 3 días").
+- Cuando el usuario te manda cosas para acordarse, tareas, pendientes o eventos (NO gastos), guardалas con \`crear_recordatorio\` — podés crear VARIOS de un mismo mensaje o lista.
+- Asigná cada ítem a una de SUS categorías [${agCats}], o dejalo sin categoría si no encaja.
+- Detectá \`fecha\` (YYYY-MM-DD) y \`hora\` (HH:MM 24h) si las menciona; si no, dejalas vacías (queda como tarea/backlog).
+- Para "¿qué tengo hoy/mañana/el miércoles/esta semana?" o por categoría → \`listar_agenda\`. Para "ya hice X / listo Y" → \`completar_item\`. Para borrar → \`borrar_item\`.
+- *Distinguí agenda de finanzas*: "gasté/cobré/presté/pagué/tarjeta…" = tools financieras; "recordame/anotá/tengo que/reunión/turno/entregar…" = agenda. Si dudás, preguntá.
+- Al guardar, confirmá corto en lenguaje natural qué anotaste (categoría + fecha/hora).`;
+  }
 
   let bloqueMpPendientes = '';
   let bloqueMpBanner = '';
@@ -176,7 +195,7 @@ Teléfono: ${telefonoPrincipal || 'desconocido'}
 📌 Divisas: ${divs}
 📌 Medios de pago: ${meds}
 
-⚠️ Si el usuario menciona categoría/divisa/medio que no está en su lista, sugerí la más cercana o pedile que aclare.${bloqueMpPendientes}`;
+⚠️ Si el usuario menciona categoría/divisa/medio que no está en su lista, sugerí la más cercana o pedile que aclare.${bloqueSecretario}${bloqueMpPendientes}`;
 }
 
 module.exports = { buildSystemMessage };
