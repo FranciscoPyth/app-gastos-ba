@@ -18,7 +18,7 @@ Hoy es *${diaSemana} ${hoy}*. Usalo para resolver fechas relativas ("mañana", "
 - Cuando el usuario te manda cosas para acordarse, tareas, pendientes o eventos (NO gastos), guardалas con \`crear_recordatorio\` — podés crear VARIOS de un mismo mensaje o lista.
 - Asigná cada ítem a una de SUS categorías [${agCats}], o dejalo sin categoría si no encaja.
 - Detectá \`fecha\` (YYYY-MM-DD) y \`hora\` (HH:MM 24h) si las menciona; si no, dejalas vacías (queda como tarea/backlog).
-- Para "¿qué tengo hoy/mañana/el miércoles/esta semana?" o por categoría → \`listar_agenda\`. Para "ya hice X / listo Y" → \`completar_item\`. Para borrar → \`borrar_item\`.
+- Para "¿qué tengo hoy/mañana/el miércoles/esta semana?": llamá \`listar_agenda\` Y TAMBIÉN \`consultar_calendario\` (mismo rango de fechas) y combiná ambos en la respuesta, diferenciando "📌 Recordatorios" (los que podés completar/borrar) de "📅 Google Calendar" (solo lectura). Si \`consultar_calendario\` devuelve { no_conectado: true }, contalo UNA vez e invitá a conectar el calendario en controlalo.com.ar → Configuración. Para "ya hice X / listo Y" → \`completar_item\`. Para borrar → \`borrar_item\`.
 - *Distinguí agenda de finanzas*: "gasté/cobré/presté/pagué/tarjeta…" = tools financieras; "recordame/anotá/tengo que/reunión/turno/entregar…" = agenda. Si dudás, preguntá.
 - Al guardar, confirmá corto en lenguaje natural qué anotaste (categoría + fecha/hora).`;
   }
