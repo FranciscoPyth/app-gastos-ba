@@ -1,6 +1,6 @@
 const { getClient, MODEL } = require('./openaiClient');
 const { buildSystemMessage } = require('./prompts');
-const { toolDefinitions, runTool } = require('./tools');
+const { getToolDefinitions, runTool } = require('./tools');
 const memory = require('./memory');
 
 const MAX_ITERATIONS = 5;
@@ -8,6 +8,7 @@ const MAX_ITERATIONS = 5;
 async function chat({ waId, userText, userContext }) {
   const client = getClient();
   const history = await memory.loadWindow(waId);
+  const tools = getToolDefinitions(userContext);
 
   const messages = [
     { role: 'system', content: buildSystemMessage(userContext) },
@@ -21,7 +22,7 @@ async function chat({ waId, userText, userContext }) {
     const response = await client.chat.completions.create({
       model: MODEL,
       messages,
-      tools: toolDefinitions,
+      tools,
       tool_choice: 'auto'
     });
 

@@ -130,4 +130,10 @@ db.PresupuestoLineas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 
 db.ProyeccionConfig = require('./proyeccionConfig')(sequelize, DataTypes);
 db.ProyeccionConfig.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
+db.AgendaCategorias = require('./agendaCategorias')(sequelize, DataTypes);
+db.AgendaCategorias.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
+db.AgendaItems = require('./agendaItems')(sequelize, DataTypes);
+db.AgendaItems.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;

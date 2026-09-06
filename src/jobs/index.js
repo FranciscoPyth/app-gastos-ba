@@ -2,6 +2,11 @@ const cron = require('node-cron');
 const { runDailySummary } = require('../services/dailySummary');
 const { runConciliacionReminder } = require('../services/conciliacionReminder');
 const { syncAll } = require('../utils/mpSync');
+const { runRecordatoriosPuntuales, runResumenDiarioAgenda } = require('../services/secretario');
+
+// Secretario / agenda: avisos puntuales (cada 10 min) y resumen diario (8:00 ART).
+const AGENDA_PUNTUAL_CRON = '*/10 * * * *';
+const AGENDA_DIGEST_CRON = process.env.AGENDA_DIGEST_CRON || '0 8 * * *';
 
 const DAILY_SUMMARY_CRON = process.env.DAILY_SUMMARY_CRON || '0 21 * * *';
 // Tick interno cada hora; el envío real se decide por usuario según Usuarios.hora_conciliacion.
@@ -45,6 +50,16 @@ function start() {
     }
   }, { timezone: TZ });
   console.log(`[jobs] Cron MP sync (polling): "${MP_SYNC_CRON}" TZ=${TZ}`);
+
+  cron.schedule(AGENDA_PUNTUAL_CRON, () => {
+    runRecordatoriosPuntuales().catch(err => console.error('[jobs] recordatorios puntuales error:', err.message));
+  }, { timezone: TZ });
+  console.log(`[jobs] Cron agenda puntual: "${AGENDA_PUNTUAL_CRON}" TZ=${TZ}`);
+
+  cron.schedule(AGENDA_DIGEST_CRON, () => {
+    runResumenDiarioAgenda().catch(err => console.error('[jobs] resumen agenda error:', err.message));
+  }, { timezone: TZ });
+  console.log(`[jobs] Cron agenda resumen: "${AGENDA_DIGEST_CRON}" TZ=${TZ}`);
 }
 
 module.exports = { start };
