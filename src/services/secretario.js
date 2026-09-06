@@ -2,6 +2,16 @@
 const { Op } = require('sequelize');
 const db = require('../models');
 const { notifyUser } = require('./notify');
+const { lunesActual } = require('../utils/semana');
+
+function fmtObjetivo(o) {
+  const meta = o.meta != null ? Number(o.meta) : null;
+  const progreso = Number(o.progreso);
+  const logrado = o.completado || (meta != null && progreso >= meta);
+  const marca = logrado ? '✅' : '⬜';
+  const detalle = meta != null ? ` (${progreso}/${meta})` : '';
+  return `${marca} ${o.texto}${detalle}`;
+}
 
 // Fecha y hora actuales en horario Argentina (UTC-3).
 function ahoraAr() {
@@ -65,4 +75,39 @@ async function runResumenDiarioAgenda() {
   return { enviados };
 }
 
-module.exports = { runRecordatoriosPuntuales, runResumenDiarioAgenda };
+// Cierre de la semana (domingo): repaso de objetivos logrados.
+async function runCierreObjetivos() {
+  const semana = lunesActual();
+  const usuarios = await db.Usuarios.findAll({ where: { secretario_habilitado: true } });
+  let enviados = 0;
+  for (const u of usuarios) {
+    const objetivos = await db.ObjetivosSemanales.findAll({ where: { user_id: u.id, semana }, order: [['id', 'ASC']] });
+    if (!objetivos.length) continue;
+    const logrados = objetivos.filter(o => o.completado || (o.meta != null && Number(o.progreso) >= Number(o.meta))).length;
+    const lineas = objetivos.map(fmtObjetivo).join('\n');
+    const text = `🏁 Cierre de la semana${u.username ? ', ' + u.username : ''}: lograste *${logrados}/${objetivos.length}* objetivos.\n${lineas}`;
+    try { await notifyUser(u, { text }); enviados++; } catch (e) { console.error('[secretario] cierre objetivos error:', e.response?.data || e.message); }
+  }
+  console.log(`[secretario] cierres de objetivos enviados: ${enviados}`);
+  return { enviados };
+}
+
+// Empujón a mitad de semana (miércoles): cómo viene el progreso.
+async function runEmpujonObjetivos() {
+  const semana = lunesActual();
+  const usuarios = await db.Usuarios.findAll({ where: { secretario_habilitado: true } });
+  let enviados = 0;
+  for (const u of usuarios) {
+    const objetivos = await db.ObjetivosSemanales.findAll({ where: { user_id: u.id, semana }, order: [['id', 'ASC']] });
+    if (!objetivos.length) continue;
+    const pendientes = objetivos.filter(o => !(o.completado || (o.meta != null && Number(o.progreso) >= Number(o.meta))));
+    if (!pendientes.length) continue;
+    const lineas = pendientes.map(fmtObjetivo).join('\n');
+    const text = `💪 Mitad de semana. Te queda pendiente:\n${lineas}\n¡Dale que llegás!`;
+    try { await notifyUser(u, { text }); enviados++; } catch (e) { console.error('[secretario] empujón objetivos error:', e.response?.data || e.message); }
+  }
+  console.log(`[secretario] empujones de objetivos enviados: ${enviados}`);
+  return { enviados };
+}
+
+module.exports = { runRecordatoriosPuntuales, runResumenDiarioAgenda, runCierreObjetivos, runEmpujonObjetivos };
