@@ -2,11 +2,14 @@ const cron = require('node-cron');
 const { runDailySummary } = require('../services/dailySummary');
 const { runConciliacionReminder } = require('../services/conciliacionReminder');
 const { syncAll } = require('../utils/mpSync');
-const { runRecordatoriosPuntuales, runResumenDiarioAgenda } = require('../services/secretario');
+const { runRecordatoriosPuntuales, runResumenDiarioAgenda, runCierreObjetivos, runEmpujonObjetivos } = require('../services/secretario');
 
 // Secretario / agenda: avisos puntuales (cada 10 min) y resumen diario (8:00 ART).
 const AGENDA_PUNTUAL_CRON = '*/10 * * * *';
 const AGENDA_DIGEST_CRON = process.env.AGENDA_DIGEST_CRON || '0 8 * * *';
+// Objetivos semanales: cierre domingo 21:00 y empujón miércoles 18:00 (ART).
+const OBJETIVOS_CIERRE_CRON = process.env.OBJETIVOS_CIERRE_CRON || '0 21 * * 0';
+const OBJETIVOS_EMPUJON_CRON = process.env.OBJETIVOS_EMPUJON_CRON || '0 18 * * 3';
 
 const DAILY_SUMMARY_CRON = process.env.DAILY_SUMMARY_CRON || '0 21 * * *';
 // Tick interno cada hora; el envío real se decide por usuario según Usuarios.hora_conciliacion.
@@ -60,6 +63,16 @@ function start() {
     runResumenDiarioAgenda().catch(err => console.error('[jobs] resumen agenda error:', err.message));
   }, { timezone: TZ });
   console.log(`[jobs] Cron agenda resumen: "${AGENDA_DIGEST_CRON}" TZ=${TZ}`);
+
+  cron.schedule(OBJETIVOS_CIERRE_CRON, () => {
+    runCierreObjetivos().catch(err => console.error('[jobs] cierre objetivos error:', err.message));
+  }, { timezone: TZ });
+  console.log(`[jobs] Cron objetivos cierre: "${OBJETIVOS_CIERRE_CRON}" TZ=${TZ}`);
+
+  cron.schedule(OBJETIVOS_EMPUJON_CRON, () => {
+    runEmpujonObjetivos().catch(err => console.error('[jobs] empujón objetivos error:', err.message));
+  }, { timezone: TZ });
+  console.log(`[jobs] Cron objetivos empujón: "${OBJETIVOS_EMPUJON_CRON}" TZ=${TZ}`);
 }
 
 module.exports = { start };

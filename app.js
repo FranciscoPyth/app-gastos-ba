@@ -78,6 +78,7 @@ app.use('/api/patrimonio', require('./src/routes/patrimonio'));
 app.use('/api/presupuesto', require('./src/routes/presupuesto'));
 app.use('/api/proyeccion', require('./src/routes/proyeccion'));
 app.use('/api/gcal', require('./src/routes/gcal'));
+app.use('/api/agenda', require('./src/routes/agenda'));
 app.use('/api/admin', require('./src/routes/admin'));
 
 // Manejo de errores

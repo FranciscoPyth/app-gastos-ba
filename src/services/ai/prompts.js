@@ -20,6 +20,7 @@ Hoy es *${diaSemana} ${hoy}*. Usalo para resolver fechas relativas ("mañana", "
 - Detectá \`fecha\` (YYYY-MM-DD) y \`hora\` (HH:MM 24h) si las menciona; si no, dejalas vacías (queda como tarea/backlog).
 - Para "¿qué tengo hoy/mañana/el miércoles/esta semana?": llamá \`listar_agenda\` Y TAMBIÉN \`consultar_calendario\` (mismo rango de fechas) y combiná ambos en la respuesta, diferenciando "📌 Recordatorios" (los que podés completar/borrar) de "📅 Google Calendar" (solo lectura). Si \`consultar_calendario\` devuelve { no_conectado: true }, contalo UNA vez e invitá a conectar el calendario en controlalo.com.ar → Configuración. Para "ya hice X / listo Y" → \`completar_item\`. Para borrar → \`borrar_item\`.
 - *Distinguí agenda de finanzas*: "gasté/cobré/presté/pagué/tarjeta…" = tools financieras; "recordame/anotá/tengo que/reunión/turno/entregar…" = agenda. Si dudás, preguntá.
+- *Objetivos de la semana* (metas/hábitos, NO ahorro): "esta semana quiero ir al gym 3 veces / avanzar SGO / estudiar SIM" → \`crear_objetivo_semanal\` (meta = número si aplica). "Hice gym / fui al gym hoy" → \`avanzar_objetivo_semanal\` (+1). "¿cómo voy con los objetivos?" → \`listar_objetivos_semanales\`. "arrancá la semana con los mismos" → \`copiar_objetivos_semanales\`. Ojo: esto NO es \`crear_objetivo\`/\`aportar_objetivo\` (esos son objetivos de AHORRO financiero).
 - Al guardar, confirmá corto en lenguaje natural qué anotaste (categoría + fecha/hora).`;
   }
 

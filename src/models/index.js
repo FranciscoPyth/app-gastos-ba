@@ -139,4 +139,7 @@ db.AgendaItems.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' }
 db.GoogleCalendarCuentas = require('./googleCalendarCuentas')(sequelize, DataTypes);
 db.GoogleCalendarCuentas.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
 
+db.ObjetivosSemanales = require('./objetivosSemanales')(sequelize, DataTypes);
+db.ObjetivosSemanales.belongsTo(db.Usuarios, { foreignKey: 'user_id', targetKey: 'id' });
+
 module.exports = db;

@@ -6,6 +6,7 @@ const { Op } = require('sequelize');
 const db = require('../../models');
 const { enrichTarjeta, getResumenPeriodo } = require('../../utils/tarjetas');
 const gcal = require('../googleCalendar');
+const { lunesActual, semanaAnterior } = require('../../utils/semana');
 
 const INTERNAL_BASE = process.env.INTERNAL_API_BASE || `http://localhost:${process.env.PORT || 4000}`;
 
@@ -501,6 +502,61 @@ const agendaToolDefinitions = [
         }
       }
     }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crear_objetivo_semanal',
+      description: 'Crea uno o varios OBJETIVOS DE LA SEMANA (metas/hábitos: "ir al gym 3 veces", "estudiar SIM", "avanzar SGO"). NO es un objetivo de ahorro financiero (para eso está crear_objetivo). meta = número a alcanzar (ej. 3); si no aplica, omitir (queda hecho/no hecho).',
+      parameters: {
+        type: 'object', required: ['items'],
+        properties: {
+          items: {
+            type: 'array', description: 'Objetivos de la semana a crear.',
+            items: {
+              type: 'object', required: ['texto'],
+              properties: {
+                texto: { type: 'string', description: 'El objetivo. Ej: "Ir al gym", "Estudiar SIM".' },
+                meta: { type: 'number', description: 'Cuántas veces / cuánto (ej. 3). Omitir si es hecho/no hecho.' },
+                categoria: { type: 'string', description: 'Categoría del set del usuario. Opcional.' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'avanzar_objetivo_semanal',
+      description: 'Registra progreso en un objetivo de la semana ("hice gym" → +1) o lo marca logrado. Fuzzy match por texto entre los objetivos de la semana actual.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'number' },
+          texto: { type: 'string', description: 'Texto o parte del objetivo.' },
+          cantidad: { type: 'number', description: 'Cuánto sumar al progreso (default 1).' },
+          completar: { type: 'boolean', description: 'true para marcarlo logrado directamente.' }
+        }
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'listar_objetivos_semanales',
+      description: 'Lista los objetivos de la semana con su progreso y si están logrados. Para "¿cómo voy con los objetivos?".',
+      parameters: { type: 'object', properties: { semana: { type: 'string', description: 'YYYY-MM-DD (lunes). Default: semana actual.' } } }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'copiar_objetivos_semanales',
+      description: 'Copia los objetivos de la semana anterior a la actual (progreso en 0). Usar cuando el usuario quiere arrancar la semana con los mismos de la anterior y la actual está vacía.',
+      parameters: { type: 'object', properties: {} }
+    }
   }
 ];
 
@@ -969,6 +1025,77 @@ async function runTool(name, args, ctx) {
     if (!userId) return { error: 'No se pudo identificar al usuario' };
     try { return await gcal.listEvents(userId, { desde: args.desde, hasta: args.hasta }); }
     catch (e) { return { error: 'No pude leer el calendario', detalle: e.response?.data?.error?.message || e.message }; }
+  }
+
+  // ---------- OBJETIVOS SEMANALES ----------
+  if (name === 'crear_objetivo_semanal') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const items = Array.isArray(args.items) ? args.items : [];
+    if (!items.length) return { error: 'No hay objetivos para crear' };
+    const semana = lunesActual();
+    const cats = await db.AgendaCategorias.findAll({ where: { user_id: userId, activo: true } });
+    const snap = (c) => {
+      if (!c) return null;
+      const cl = String(c).toLowerCase();
+      const found = cats.find(x => x.nombre.toLowerCase() === cl) || cats.find(x => x.nombre.toLowerCase().includes(cl) || cl.includes(x.nombre.toLowerCase()));
+      return found ? found.nombre : null;
+    };
+    const creados = [];
+    for (const it of items) {
+      if (!it || !it.texto) continue;
+      const row = await db.ObjetivosSemanales.create({
+        user_id: userId, semana, texto: String(it.texto).slice(0, 300),
+        categoria: snap(it.categoria), meta: (it.meta != null ? Number(it.meta) : null),
+        progreso: 0, completado: false, created_at: new Date()
+      });
+      creados.push({ id: row.id, texto: row.texto, meta: row.meta, categoria: row.categoria });
+    }
+    return { ok: true, semana, creados };
+  }
+
+  if (name === 'avanzar_objetivo_semanal') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const semana = lunesActual();
+    let obj = null;
+    if (args.id) obj = await db.ObjetivosSemanales.findOne({ where: { id: args.id, user_id: userId } });
+    else if (args.texto) {
+      const tokens = String(args.texto).toLowerCase().split(/\s+/).filter(t => t.length >= 2);
+      obj = await db.ObjetivosSemanales.findOne({
+        where: { user_id: userId, semana, completado: false, ...(tokens.length ? { [Op.and]: tokens.map(t => ({ texto: { [Op.like]: `%${t}%` } })) } : {}) },
+        order: [['id', 'ASC']]
+      });
+    }
+    if (!obj) return { error: 'No encontré ese objetivo de la semana.' };
+    if (args.completar) { await obj.update({ completado: true }); }
+    else { const inc = args.cantidad != null ? Number(args.cantidad) : 1; await obj.update({ progreso: Number(obj.progreso) + inc }); }
+    const logrado = obj.completado || (obj.meta != null && Number(obj.progreso) >= Number(obj.meta));
+    return { ok: true, objetivo: { id: obj.id, texto: obj.texto, progreso: Number(obj.progreso), meta: obj.meta != null ? Number(obj.meta) : null, logrado } };
+  }
+
+  if (name === 'listar_objetivos_semanales') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const semana = args.semana || lunesActual();
+    const rows = await db.ObjetivosSemanales.findAll({ where: { user_id: userId, semana }, order: [['id', 'ASC']] });
+    return {
+      semana,
+      objetivos: rows.map(r => {
+        const meta = r.meta != null ? Number(r.meta) : null;
+        const progreso = Number(r.progreso);
+        return { id: r.id, texto: r.texto, categoria: r.categoria, meta, progreso, logrado: r.completado || (meta != null && progreso >= meta) };
+      })
+    };
+  }
+
+  if (name === 'copiar_objetivos_semanales') {
+    if (!userId) return { error: 'No se pudo identificar al usuario' };
+    const semana = lunesActual();
+    const yaHay = await db.ObjetivosSemanales.count({ where: { user_id: userId, semana } });
+    if (yaHay) return { error: 'La semana actual ya tiene objetivos.' };
+    const prev = await db.ObjetivosSemanales.findAll({ where: { user_id: userId, semana: semanaAnterior(semana) } });
+    for (const o of prev) {
+      await db.ObjetivosSemanales.create({ user_id: userId, semana, texto: o.texto, categoria: o.categoria, meta: o.meta, progreso: 0, completado: false, created_at: new Date() });
+    }
+    return { ok: true, copiados: prev.length, semana };
   }
 
   throw new Error(`Tool desconocida: ${name}`);
