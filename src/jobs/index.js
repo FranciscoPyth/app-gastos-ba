@@ -23,10 +23,12 @@ function start() {
   }, { timezone: TZ });
   console.log(`[jobs] Cron resumen diario programado: "${DAILY_SUMMARY_CRON}" TZ=${TZ}`);
 
-  cron.schedule(CONCILIACION_TICK_CRON, () => {
-    runConciliacionReminder().catch(err => console.error('[jobs] runConciliacionReminder error:', err));
-  }, { timezone: TZ });
-  console.log(`[jobs] Cron conciliación (tick horario): "${CONCILIACION_TICK_CRON}" TZ=${TZ}`);
+  // Recordatorio de conciliación DESACTIVADO (2026-09-04): el aviso diario de las 22h
+  // dejó de ser útil. Se deja el código por si se quiere reactivar.
+  // cron.schedule(CONCILIACION_TICK_CRON, () => {
+  //   runConciliacionReminder().catch(err => console.error('[jobs] runConciliacionReminder error:', err));
+  // }, { timezone: TZ });
+  // console.log(`[jobs] Cron conciliación (tick horario): "${CONCILIACION_TICK_CRON}" TZ=${TZ}`);
 
   // Polling MP en el mismo proceso (reemplaza scripts/mp-sync-worker.js).
   // Guard de solapamiento por si un sync tarda más que el intervalo.
