@@ -9,8 +9,9 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
-function clientId() { return process.env.GOOGLE_CLIENT_ID; }
-function clientSecret() { return process.env.GOOGLE_CLIENT_SECRET; }
+// Cliente dedicado para calendario (independiente del login de Google). Fallback al de login.
+function clientId() { return process.env.GOOGLE_CALENDAR_CLIENT_ID || process.env.GOOGLE_CLIENT_ID; }
+function clientSecret() { return process.env.GOOGLE_CALENDAR_CLIENT_SECRET || process.env.GOOGLE_CLIENT_SECRET; }
 function redirectUri() { return process.env.GOOGLE_CALENDAR_REDIRECT_URI || 'https://controlalo.com.ar/api/gcal/callback'; }
 function isConfigured() { return !!(clientId() && clientSecret()); }
 
